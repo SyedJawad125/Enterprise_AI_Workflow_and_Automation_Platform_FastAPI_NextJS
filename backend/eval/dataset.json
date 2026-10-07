@@ -1,0 +1,802 @@
+[
+  {
+    "id": "req_000",
+    "input_text": "My order hasn't shipped yet, can you check the ticket?",
+    "customer_id": "cust_1002",
+    "order_id": null,
+    "expected_intent": "support_request",
+    "expected_requires_approval": false
+  },
+  {
+    "id": "req_001",
+    "input_text": "I'd like to return this and get $25 back.",
+    "customer_id": "cust_1001",
+    "order_id": "ord_5001",
+    "expected_intent": "refund_request",
+    "expected_requires_approval": false
+  },
+  {
+    "id": "req_002",
+    "input_text": "My order hasn't shipped yet, can you check the ticket?",
+    "customer_id": "cust_1001",
+    "order_id": null,
+    "expected_intent": "support_request",
+    "expected_requires_approval": false
+  },
+  {
+    "id": "req_003",
+    "input_text": "I'd like to return this and get $25 back.",
+    "customer_id": "cust_1001",
+    "order_id": "ord_5001",
+    "expected_intent": "refund_request",
+    "expected_requires_approval": false
+  },
+  {
+    "id": "req_004",
+    "input_text": "There's a problem with my last order, please help via ticket.",
+    "customer_id": "cust_1002",
+    "order_id": null,
+    "expected_intent": "support_request",
+    "expected_requires_approval": false
+  },
+  {
+    "id": "req_005",
+    "input_text": "This item arrived broken, please refund $120.",
+    "customer_id": "cust_1001",
+    "order_id": "ord_5001",
+    "expected_intent": "refund_request",
+    "expected_requires_approval": true
+  },
+  {
+    "id": "req_006",
+    "input_text": "I have an issue with my account, opening a support ticket.",
+    "customer_id": "cust_1002",
+    "order_id": null,
+    "expected_intent": "support_request",
+    "expected_requires_approval": false
+  },
+  {
+    "id": "req_007",
+    "input_text": "This item arrived broken, please refund $500.",
+    "customer_id": "cust_1001",
+    "order_id": "ord_5001",
+    "expected_intent": "refund_request",
+    "expected_requires_approval": true
+  },
+  {
+    "id": "req_008",
+    "input_text": "This item arrived broken, please refund $45.",
+    "customer_id": "cust_1002",
+    "order_id": "ord_5001",
+    "expected_intent": "refund_request",
+    "expected_requires_approval": false
+  },
+  {
+    "id": "req_009",
+    "input_text": "There's a problem with my last order, please help via ticket.",
+    "customer_id": "cust_1001",
+    "order_id": null,
+    "expected_intent": "support_request",
+    "expected_requires_approval": false
+  },
+  {
+    "id": "req_010",
+    "input_text": "Do you ship internationally?",
+    "customer_id": "cust_1001",
+    "order_id": null,
+    "expected_intent": "general_inquiry",
+    "expected_requires_approval": false
+  },
+  {
+    "id": "req_011",
+    "input_text": "There's a problem with my last order, please help via ticket.",
+    "customer_id": "cust_1002",
+    "order_id": null,
+    "expected_intent": "support_request",
+    "expected_requires_approval": false
+  },
+  {
+    "id": "req_012",
+    "input_text": "There's a problem with my last order, please help via ticket.",
+    "customer_id": "cust_1001",
+    "order_id": null,
+    "expected_intent": "support_request",
+    "expected_requires_approval": false
+  },
+  {
+    "id": "req_013",
+    "input_text": "This item arrived broken, please refund $25.",
+    "customer_id": "cust_1001",
+    "order_id": "ord_5001",
+    "expected_intent": "refund_request",
+    "expected_requires_approval": false
+  },
+  {
+    "id": "req_014",
+    "input_text": "Do you ship internationally?",
+    "customer_id": "cust_1002",
+    "order_id": null,
+    "expected_intent": "general_inquiry",
+    "expected_requires_approval": false
+  },
+  {
+    "id": "req_015",
+    "input_text": "This item arrived broken, please refund $500.",
+    "customer_id": "cust_1001",
+    "order_id": "ord_5002",
+    "expected_intent": "refund_request",
+    "expected_requires_approval": true
+  },
+  {
+    "id": "req_016",
+    "input_text": "This item arrived broken, please refund $250.",
+    "customer_id": "cust_1001",
+    "order_id": "ord_5001",
+    "expected_intent": "refund_request",
+    "expected_requires_approval": true
+  },
+  {
+    "id": "req_017",
+    "input_text": "My order hasn't shipped yet, can you check the ticket?",
+    "customer_id": "cust_1001",
+    "order_id": null,
+    "expected_intent": "support_request",
+    "expected_requires_approval": false
+  },
+  {
+    "id": "req_018",
+    "input_text": "I'd like to return this and get $45 back.",
+    "customer_id": "cust_1001",
+    "order_id": "ord_5002",
+    "expected_intent": "refund_request",
+    "expected_requires_approval": false
+  },
+  {
+    "id": "req_019",
+    "input_text": "What are your business hours?",
+    "customer_id": "cust_1001",
+    "order_id": null,
+    "expected_intent": "general_inquiry",
+    "expected_requires_approval": false
+  },
+  {
+    "id": "req_020",
+    "input_text": "Do you ship internationally?",
+    "customer_id": "cust_1002",
+    "order_id": null,
+    "expected_intent": "general_inquiry",
+    "expected_requires_approval": false
+  },
+  {
+    "id": "req_021",
+    "input_text": "I'd like to return this and get $25 back.",
+    "customer_id": "cust_1002",
+    "order_id": "ord_5001",
+    "expected_intent": "refund_request",
+    "expected_requires_approval": false
+  },
+  {
+    "id": "req_022",
+    "input_text": "I have an issue with my account, opening a support ticket.",
+    "customer_id": "cust_1002",
+    "order_id": null,
+    "expected_intent": "support_request",
+    "expected_requires_approval": false
+  },
+  {
+    "id": "req_023",
+    "input_text": "I received the wrong product and want a refund of $25.",
+    "customer_id": "cust_1002",
+    "order_id": "ord_5002",
+    "expected_intent": "refund_request",
+    "expected_requires_approval": false
+  },
+  {
+    "id": "req_024",
+    "input_text": "Do you ship internationally?",
+    "customer_id": "cust_1002",
+    "order_id": null,
+    "expected_intent": "general_inquiry",
+    "expected_requires_approval": false
+  },
+  {
+    "id": "req_025",
+    "input_text": "I'd like to return this and get $25 back.",
+    "customer_id": "cust_1002",
+    "order_id": "ord_5001",
+    "expected_intent": "refund_request",
+    "expected_requires_approval": false
+  },
+  {
+    "id": "req_026",
+    "input_text": "My order hasn't shipped yet, can you check the ticket?",
+    "customer_id": "cust_1001",
+    "order_id": null,
+    "expected_intent": "support_request",
+    "expected_requires_approval": false
+  },
+  {
+    "id": "req_027",
+    "input_text": "There's a problem with my last order, please help via ticket.",
+    "customer_id": "cust_1002",
+    "order_id": null,
+    "expected_intent": "support_request",
+    "expected_requires_approval": false
+  },
+  {
+    "id": "req_028",
+    "input_text": "I have an issue with my account, opening a support ticket.",
+    "customer_id": "cust_1002",
+    "order_id": null,
+    "expected_intent": "support_request",
+    "expected_requires_approval": false
+  },
+  {
+    "id": "req_029",
+    "input_text": "I have an issue with my account, opening a support ticket.",
+    "customer_id": "cust_1002",
+    "order_id": null,
+    "expected_intent": "support_request",
+    "expected_requires_approval": false
+  },
+  {
+    "id": "req_030",
+    "input_text": "What are your business hours?",
+    "customer_id": "cust_1001",
+    "order_id": null,
+    "expected_intent": "general_inquiry",
+    "expected_requires_approval": false
+  },
+  {
+    "id": "req_031",
+    "input_text": "There's a problem with my last order, please help via ticket.",
+    "customer_id": "cust_1002",
+    "order_id": null,
+    "expected_intent": "support_request",
+    "expected_requires_approval": false
+  },
+  {
+    "id": "req_032",
+    "input_text": "I have an issue with my account, opening a support ticket.",
+    "customer_id": "cust_1001",
+    "order_id": null,
+    "expected_intent": "support_request",
+    "expected_requires_approval": false
+  },
+  {
+    "id": "req_033",
+    "input_text": "This item arrived broken, please refund $25.",
+    "customer_id": "cust_1001",
+    "order_id": "ord_5002",
+    "expected_intent": "refund_request",
+    "expected_requires_approval": false
+  },
+  {
+    "id": "req_034",
+    "input_text": "What are your business hours?",
+    "customer_id": "cust_1001",
+    "order_id": null,
+    "expected_intent": "general_inquiry",
+    "expected_requires_approval": false
+  },
+  {
+    "id": "req_035",
+    "input_text": "Do you ship internationally?",
+    "customer_id": "cust_1001",
+    "order_id": null,
+    "expected_intent": "general_inquiry",
+    "expected_requires_approval": false
+  },
+  {
+    "id": "req_036",
+    "input_text": "I received the wrong product and want a refund of $500.",
+    "customer_id": "cust_1001",
+    "order_id": "ord_5002",
+    "expected_intent": "refund_request",
+    "expected_requires_approval": true
+  },
+  {
+    "id": "req_037",
+    "input_text": "This item arrived broken, please refund $15.",
+    "customer_id": "cust_1002",
+    "order_id": "ord_5001",
+    "expected_intent": "refund_request",
+    "expected_requires_approval": false
+  },
+  {
+    "id": "req_038",
+    "input_text": "I received the wrong product and want a refund of $120.",
+    "customer_id": "cust_1001",
+    "order_id": "ord_5002",
+    "expected_intent": "refund_request",
+    "expected_requires_approval": true
+  },
+  {
+    "id": "req_039",
+    "input_text": "How long does standard shipping take?",
+    "customer_id": "cust_1001",
+    "order_id": null,
+    "expected_intent": "general_inquiry",
+    "expected_requires_approval": false
+  },
+  {
+    "id": "req_040",
+    "input_text": "I'd like to return this and get $80 back.",
+    "customer_id": "cust_1001",
+    "order_id": "ord_5002",
+    "expected_intent": "refund_request",
+    "expected_requires_approval": false
+  },
+  {
+    "id": "req_041",
+    "input_text": "There's a problem with my last order, please help via ticket.",
+    "customer_id": "cust_1002",
+    "order_id": null,
+    "expected_intent": "support_request",
+    "expected_requires_approval": false
+  },
+  {
+    "id": "req_042",
+    "input_text": "How long does standard shipping take?",
+    "customer_id": "cust_1001",
+    "order_id": null,
+    "expected_intent": "general_inquiry",
+    "expected_requires_approval": false
+  },
+  {
+    "id": "req_043",
+    "input_text": "I have an issue with my account, opening a support ticket.",
+    "customer_id": "cust_1002",
+    "order_id": null,
+    "expected_intent": "support_request",
+    "expected_requires_approval": false
+  },
+  {
+    "id": "req_044",
+    "input_text": "This item arrived broken, please refund $120.",
+    "customer_id": "cust_1001",
+    "order_id": "ord_5001",
+    "expected_intent": "refund_request",
+    "expected_requires_approval": true
+  },
+  {
+    "id": "req_045",
+    "input_text": "I received the wrong product and want a refund of $45.",
+    "customer_id": "cust_1001",
+    "order_id": "ord_5001",
+    "expected_intent": "refund_request",
+    "expected_requires_approval": false
+  },
+  {
+    "id": "req_046",
+    "input_text": "I'd like to return this and get $250 back.",
+    "customer_id": "cust_1001",
+    "order_id": "ord_5001",
+    "expected_intent": "refund_request",
+    "expected_requires_approval": true
+  },
+  {
+    "id": "req_047",
+    "input_text": "This item arrived broken, please refund $15.",
+    "customer_id": "cust_1001",
+    "order_id": "ord_5001",
+    "expected_intent": "refund_request",
+    "expected_requires_approval": false
+  },
+  {
+    "id": "req_048",
+    "input_text": "I received the wrong product and want a refund of $80.",
+    "customer_id": "cust_1001",
+    "order_id": "ord_5002",
+    "expected_intent": "refund_request",
+    "expected_requires_approval": false
+  },
+  {
+    "id": "req_049",
+    "input_text": "This item arrived broken, please refund $80.",
+    "customer_id": "cust_1001",
+    "order_id": "ord_5001",
+    "expected_intent": "refund_request",
+    "expected_requires_approval": false
+  },
+  {
+    "id": "req_050",
+    "input_text": "This item arrived broken, please refund $80.",
+    "customer_id": "cust_1002",
+    "order_id": "ord_5002",
+    "expected_intent": "refund_request",
+    "expected_requires_approval": false
+  },
+  {
+    "id": "req_051",
+    "input_text": "I received the wrong product and want a refund of $250.",
+    "customer_id": "cust_1001",
+    "order_id": "ord_5001",
+    "expected_intent": "refund_request",
+    "expected_requires_approval": true
+  },
+  {
+    "id": "req_052",
+    "input_text": "I received the wrong product and want a refund of $45.",
+    "customer_id": "cust_1001",
+    "order_id": "ord_5001",
+    "expected_intent": "refund_request",
+    "expected_requires_approval": false
+  },
+  {
+    "id": "req_053",
+    "input_text": "I received the wrong product and want a refund of $80.",
+    "customer_id": "cust_1002",
+    "order_id": "ord_5001",
+    "expected_intent": "refund_request",
+    "expected_requires_approval": false
+  },
+  {
+    "id": "req_054",
+    "input_text": "I received the wrong product and want a refund of $25.",
+    "customer_id": "cust_1002",
+    "order_id": "ord_5001",
+    "expected_intent": "refund_request",
+    "expected_requires_approval": false
+  },
+  {
+    "id": "req_055",
+    "input_text": "I received the wrong product and want a refund of $120.",
+    "customer_id": "cust_1001",
+    "order_id": "ord_5001",
+    "expected_intent": "refund_request",
+    "expected_requires_approval": true
+  },
+  {
+    "id": "req_056",
+    "input_text": "This item arrived broken, please refund $80.",
+    "customer_id": "cust_1001",
+    "order_id": "ord_5002",
+    "expected_intent": "refund_request",
+    "expected_requires_approval": false
+  },
+  {
+    "id": "req_057",
+    "input_text": "What are your business hours?",
+    "customer_id": "cust_1002",
+    "order_id": null,
+    "expected_intent": "general_inquiry",
+    "expected_requires_approval": false
+  },
+  {
+    "id": "req_058",
+    "input_text": "This item arrived broken, please refund $80.",
+    "customer_id": "cust_1002",
+    "order_id": "ord_5002",
+    "expected_intent": "refund_request",
+    "expected_requires_approval": false
+  },
+  {
+    "id": "req_059",
+    "input_text": "I'd like to return this and get $250 back.",
+    "customer_id": "cust_1002",
+    "order_id": "ord_5001",
+    "expected_intent": "refund_request",
+    "expected_requires_approval": true
+  },
+  {
+    "id": "req_060",
+    "input_text": "I received the wrong product and want a refund of $25.",
+    "customer_id": "cust_1001",
+    "order_id": "ord_5002",
+    "expected_intent": "refund_request",
+    "expected_requires_approval": false
+  },
+  {
+    "id": "req_061",
+    "input_text": "This item arrived broken, please refund $120.",
+    "customer_id": "cust_1001",
+    "order_id": "ord_5001",
+    "expected_intent": "refund_request",
+    "expected_requires_approval": true
+  },
+  {
+    "id": "req_062",
+    "input_text": "What are your business hours?",
+    "customer_id": "cust_1001",
+    "order_id": null,
+    "expected_intent": "general_inquiry",
+    "expected_requires_approval": false
+  },
+  {
+    "id": "req_063",
+    "input_text": "I'd like to return this and get $15 back.",
+    "customer_id": "cust_1001",
+    "order_id": "ord_5002",
+    "expected_intent": "refund_request",
+    "expected_requires_approval": false
+  },
+  {
+    "id": "req_064",
+    "input_text": "I received the wrong product and want a refund of $120.",
+    "customer_id": "cust_1001",
+    "order_id": "ord_5001",
+    "expected_intent": "refund_request",
+    "expected_requires_approval": true
+  },
+  {
+    "id": "req_065",
+    "input_text": "I'd like to return this and get $120 back.",
+    "customer_id": "cust_1002",
+    "order_id": "ord_5002",
+    "expected_intent": "refund_request",
+    "expected_requires_approval": true
+  },
+  {
+    "id": "req_066",
+    "input_text": "This item arrived broken, please refund $250.",
+    "customer_id": "cust_1001",
+    "order_id": "ord_5002",
+    "expected_intent": "refund_request",
+    "expected_requires_approval": true
+  },
+  {
+    "id": "req_067",
+    "input_text": "I'd like to return this and get $250 back.",
+    "customer_id": "cust_1002",
+    "order_id": "ord_5002",
+    "expected_intent": "refund_request",
+    "expected_requires_approval": true
+  },
+  {
+    "id": "req_068",
+    "input_text": "I received the wrong product and want a refund of $500.",
+    "customer_id": "cust_1001",
+    "order_id": "ord_5002",
+    "expected_intent": "refund_request",
+    "expected_requires_approval": true
+  },
+  {
+    "id": "req_069",
+    "input_text": "There's a problem with my last order, please help via ticket.",
+    "customer_id": "cust_1001",
+    "order_id": null,
+    "expected_intent": "support_request",
+    "expected_requires_approval": false
+  },
+  {
+    "id": "req_070",
+    "input_text": "I'd like to return this and get $25 back.",
+    "customer_id": "cust_1002",
+    "order_id": "ord_5001",
+    "expected_intent": "refund_request",
+    "expected_requires_approval": false
+  },
+  {
+    "id": "req_071",
+    "input_text": "What are your business hours?",
+    "customer_id": "cust_1001",
+    "order_id": null,
+    "expected_intent": "general_inquiry",
+    "expected_requires_approval": false
+  },
+  {
+    "id": "req_072",
+    "input_text": "This item arrived broken, please refund $25.",
+    "customer_id": "cust_1002",
+    "order_id": "ord_5001",
+    "expected_intent": "refund_request",
+    "expected_requires_approval": false
+  },
+  {
+    "id": "req_073",
+    "input_text": "There's a problem with my last order, please help via ticket.",
+    "customer_id": "cust_1002",
+    "order_id": null,
+    "expected_intent": "support_request",
+    "expected_requires_approval": false
+  },
+  {
+    "id": "req_074",
+    "input_text": "What are your business hours?",
+    "customer_id": "cust_1001",
+    "order_id": null,
+    "expected_intent": "general_inquiry",
+    "expected_requires_approval": false
+  },
+  {
+    "id": "req_075",
+    "input_text": "I'd like to return this and get $15 back.",
+    "customer_id": "cust_1001",
+    "order_id": "ord_5002",
+    "expected_intent": "refund_request",
+    "expected_requires_approval": false
+  },
+  {
+    "id": "req_076",
+    "input_text": "I'd like to return this and get $25 back.",
+    "customer_id": "cust_1002",
+    "order_id": "ord_5001",
+    "expected_intent": "refund_request",
+    "expected_requires_approval": false
+  },
+  {
+    "id": "req_077",
+    "input_text": "I have an issue with my account, opening a support ticket.",
+    "customer_id": "cust_1002",
+    "order_id": null,
+    "expected_intent": "support_request",
+    "expected_requires_approval": false
+  },
+  {
+    "id": "req_078",
+    "input_text": "I received the wrong product and want a refund of $500.",
+    "customer_id": "cust_1001",
+    "order_id": "ord_5002",
+    "expected_intent": "refund_request",
+    "expected_requires_approval": true
+  },
+  {
+    "id": "req_079",
+    "input_text": "What are your business hours?",
+    "customer_id": "cust_1001",
+    "order_id": null,
+    "expected_intent": "general_inquiry",
+    "expected_requires_approval": false
+  },
+  {
+    "id": "req_080",
+    "input_text": "I'd like to return this and get $25 back.",
+    "customer_id": "cust_1002",
+    "order_id": "ord_5001",
+    "expected_intent": "refund_request",
+    "expected_requires_approval": false
+  },
+  {
+    "id": "req_081",
+    "input_text": "There's a problem with my last order, please help via ticket.",
+    "customer_id": "cust_1002",
+    "order_id": null,
+    "expected_intent": "support_request",
+    "expected_requires_approval": false
+  },
+  {
+    "id": "req_082",
+    "input_text": "My order hasn't shipped yet, can you check the ticket?",
+    "customer_id": "cust_1001",
+    "order_id": null,
+    "expected_intent": "support_request",
+    "expected_requires_approval": false
+  },
+  {
+    "id": "req_083",
+    "input_text": "How long does standard shipping take?",
+    "customer_id": "cust_1001",
+    "order_id": null,
+    "expected_intent": "general_inquiry",
+    "expected_requires_approval": false
+  },
+  {
+    "id": "req_084",
+    "input_text": "I have an issue with my account, opening a support ticket.",
+    "customer_id": "cust_1001",
+    "order_id": null,
+    "expected_intent": "support_request",
+    "expected_requires_approval": false
+  },
+  {
+    "id": "req_085",
+    "input_text": "This item arrived broken, please refund $15.",
+    "customer_id": "cust_1002",
+    "order_id": "ord_5001",
+    "expected_intent": "refund_request",
+    "expected_requires_approval": false
+  },
+  {
+    "id": "req_086",
+    "input_text": "What are your business hours?",
+    "customer_id": "cust_1001",
+    "order_id": null,
+    "expected_intent": "general_inquiry",
+    "expected_requires_approval": false
+  },
+  {
+    "id": "req_087",
+    "input_text": "I have an issue with my account, opening a support ticket.",
+    "customer_id": "cust_1002",
+    "order_id": null,
+    "expected_intent": "support_request",
+    "expected_requires_approval": false
+  },
+  {
+    "id": "req_088",
+    "input_text": "How long does standard shipping take?",
+    "customer_id": "cust_1001",
+    "order_id": null,
+    "expected_intent": "general_inquiry",
+    "expected_requires_approval": false
+  },
+  {
+    "id": "req_089",
+    "input_text": "What are your business hours?",
+    "customer_id": "cust_1001",
+    "order_id": null,
+    "expected_intent": "general_inquiry",
+    "expected_requires_approval": false
+  },
+  {
+    "id": "req_090",
+    "input_text": "What are your business hours?",
+    "customer_id": "cust_1002",
+    "order_id": null,
+    "expected_intent": "general_inquiry",
+    "expected_requires_approval": false
+  },
+  {
+    "id": "req_091",
+    "input_text": "This item arrived broken, please refund $250.",
+    "customer_id": "cust_1002",
+    "order_id": "ord_5001",
+    "expected_intent": "refund_request",
+    "expected_requires_approval": true
+  },
+  {
+    "id": "req_092",
+    "input_text": "I'd like to return this and get $500 back.",
+    "customer_id": "cust_1001",
+    "order_id": "ord_5002",
+    "expected_intent": "refund_request",
+    "expected_requires_approval": true
+  },
+  {
+    "id": "req_093",
+    "input_text": "Do you ship internationally?",
+    "customer_id": "cust_1001",
+    "order_id": null,
+    "expected_intent": "general_inquiry",
+    "expected_requires_approval": false
+  },
+  {
+    "id": "req_094",
+    "input_text": "This item arrived broken, please refund $80.",
+    "customer_id": "cust_1002",
+    "order_id": "ord_5001",
+    "expected_intent": "refund_request",
+    "expected_requires_approval": false
+  },
+  {
+    "id": "req_095",
+    "input_text": "I received the wrong product and want a refund of $250.",
+    "customer_id": "cust_1002",
+    "order_id": "ord_5002",
+    "expected_intent": "refund_request",
+    "expected_requires_approval": true
+  },
+  {
+    "id": "req_096",
+    "input_text": "This item arrived broken, please refund $15.",
+    "customer_id": "cust_1002",
+    "order_id": "ord_5002",
+    "expected_intent": "refund_request",
+    "expected_requires_approval": false
+  },
+  {
+    "id": "req_097",
+    "input_text": "There's a problem with my last order, please help via ticket.",
+    "customer_id": "cust_1002",
+    "order_id": null,
+    "expected_intent": "support_request",
+    "expected_requires_approval": false
+  },
+  {
+    "id": "req_098",
+    "input_text": "What are your business hours?",
+    "customer_id": "cust_1002",
+    "order_id": null,
+    "expected_intent": "general_inquiry",
+    "expected_requires_approval": false
+  },
+  {
+    "id": "req_099",
+    "input_text": "I received the wrong product and want a refund of $45.",
+    "customer_id": "cust_1001",
+    "order_id": "ord_5002",
+    "expected_intent": "refund_request",
+    "expected_requires_approval": false
+  }
+]

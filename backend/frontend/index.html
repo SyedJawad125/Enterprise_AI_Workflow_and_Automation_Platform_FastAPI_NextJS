@@ -1,0 +1,138 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<title>Enterprise AI Workflow Platform</title>
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<style>
+  :root { color-scheme: light dark; }
+  body { font-family: -apple-system, Segoe UI, Roboto, sans-serif; max-width: 900px; margin: 2rem auto; padding: 0 1rem; }
+  h1 { font-size: 1.4rem; }
+  section { border: 1px solid #8884; border-radius: 10px; padding: 1rem; margin-bottom: 1.25rem; }
+  label { display:block; font-size: .8rem; margin-top: .5rem; opacity: .8; }
+  input, textarea { width: 100%; padding: .5rem; margin-top: .25rem; box-sizing: border-box; }
+  button { margin-top: .75rem; padding: .5rem 1rem; cursor: pointer; }
+  pre { background: #8881; padding: .75rem; border-radius: 8px; overflow-x: auto; font-size: .8rem; }
+  .step { display:flex; gap:.5rem; align-items:center; padding:.25rem 0; }
+  .dot { width:10px; height:10px; border-radius:50%; display:inline-block; }
+  .COMPLETED { background: #2ecc71; } .RUNNING { background: #f1c40f; } .FAILED { background: #e74c3c; }
+</style>
+</head>
+<body>
+<h1>Enterprise AI Workflow &amp; Automation Platform</h1>
+<p style="opacity:.7">Minimal static dashboard talking directly to the API Gateway. This is a scoped-down
+stand-in for the full Next.js dashboard in the spec (Phase 19) -- enough to demonstrate the end-to-end
+flow: login &rarr; create workflow &rarr; execute &rarr; approve &rarr; watch the timeline.</p>
+
+<section>
+  <h2>1. Login</h2>
+  <label>Gateway URL</label>
+  <input id="gatewayUrl" value="http://localhost:8000" />
+  <label>Email</label><input id="email" value="admin@example.com" />
+  <label>Password</label><input id="password" type="password" value="password123" />
+  <button onclick="register()">Register (first time)</button>
+  <button onclick="login()">Login</button>
+  <pre id="authOut"></pre>
+</section>
+
+<section>
+  <h2>2. Create &amp; Execute Workflow</h2>
+  <label>Workflow name</label><input id="wfName" value="Customer Request Workflow" />
+  <button onclick="createWorkflow()">Create Workflow</button>
+  <label>Customer request text</label>
+  <textarea id="reqText" rows="2">I received the wrong product and want a refund.</textarea>
+  <label>Customer ID</label><input id="custId" value="cust_1001" />
+  <label>Order ID</label><input id="orderId" value="ord_5001" />
+  <button onclick="executeWorkflow()">Execute</button>
+  <pre id="wfOut"></pre>
+</section>
+
+<section>
+  <h2>3. Execution Timeline</h2>
+  <button onclick="refreshStatus()">Refresh Status</button>
+  <div id="timeline"></div>
+  <pre id="statusOut"></pre>
+</section>
+
+<section>
+  <h2>4. Pending Approvals</h2>
+  <button onclick="loadApprovals()">Load Pending Approvals</button>
+  <div id="approvals"></div>
+</section>
+
+<script>
+let accessToken = null, workflowId = null, executionId = null;
+
+function gw() { return document.getElementById('gatewayUrl').value.replace(/\/$/, ''); }
+function authHeaders() { return accessToken ? { 'Authorization': 'Bearer ' + accessToken } : {}; }
+
+async function register() {
+  const res = await fetch(gw() + '/api/v1/auth/register', {
+    method: 'POST', headers: {'Content-Type':'application/json'},
+    body: JSON.stringify({email: email.value, password: password.value, role: 'ADMIN'})
+  });
+  authOut.textContent = JSON.stringify(await res.json(), null, 2);
+}
+
+async function login() {
+  const res = await fetch(gw() + '/api/v1/auth/login', {
+    method: 'POST', headers: {'Content-Type':'application/json'},
+    body: JSON.stringify({email: email.value, password: password.value})
+  });
+  const data = await res.json();
+  authOut.textContent = JSON.stringify(data, null, 2);
+  accessToken = data.access_token;
+}
+
+async function createWorkflow() {
+  const res = await fetch(gw() + '/api/v1/workflows', {
+    method: 'POST', headers: {'Content-Type':'application/json', ...authHeaders()},
+    body: JSON.stringify({name: wfName.value, description: 'Created from dashboard'})
+  });
+  const data = await res.json();
+  wfOut.textContent = JSON.stringify(data, null, 2);
+  workflowId = data.id;
+}
+
+async function executeWorkflow() {
+  if (!workflowId) { alert('Create a workflow first'); return; }
+  const res = await fetch(gw() + `/api/v1/workflows/${workflowId}/execute`, {
+    method: 'POST', headers: {'Content-Type':'application/json', ...authHeaders()},
+    body: JSON.stringify({input_text: reqText.value, customer_id: custId.value, order_id: orderId.value})
+  });
+  const data = await res.json();
+  wfOut.textContent = JSON.stringify(data, null, 2);
+  executionId = data.execution_id;
+}
+
+async function refreshStatus() {
+  if (!executionId) { alert('Execute a workflow first'); return; }
+  const res = await fetch(gw() + `/api/v1/workflows/executions/${executionId}/status`, { headers: authHeaders() });
+  const data = await res.json();
+  statusOut.textContent = JSON.stringify(data, null, 2);
+  timeline.innerHTML = data.steps.map(s =>
+    `<div class="step"><span class="dot ${s.status}"></span> ${s.step_name} — ${s.status}</div>`
+  ).join('') + `<div class="step"><strong>Execution status: ${data.status}</strong></div>`;
+}
+
+async function loadApprovals() {
+  const res = await fetch(gw() + '/api/v1/approvals', { headers: authHeaders() });
+  const data = await res.json();
+  approvals.innerHTML = data.map(a => `
+    <div class="step">
+      <span>${a.id} — risk: ${a.risk_level}</span>
+      <button onclick="decide('${a.id}', true)">Approve</button>
+      <button onclick="decide('${a.id}', false)">Reject</button>
+    </div>`).join('') || '<em>No pending approvals</em>';
+}
+
+async function decide(id, approved) {
+  await fetch(gw() + `/api/v1/approvals/${id}/${approved ? 'approve' : 'reject'}`, {
+    method: 'POST', headers: {'Content-Type':'application/json', ...authHeaders()},
+    body: JSON.stringify({decided_by: 'dashboard-user'})
+  });
+  loadApprovals();
+}
+</script>
+</body>
+</html>

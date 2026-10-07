@@ -1,0 +1,15 @@
+{
+  "report": {
+    "total_requests": 100,
+    "failed_requests": 0,
+    "intent_accuracy": 1.0,
+    "approval_gate_accuracy": 0.79,
+    "structured_output_validity": 1.0,
+    "invalid_tool_call_count": 153,
+    "avg_latency_ms": 45.02,
+    "p95_latency_ms": 62.9,
+    "total_tokens": 2245,
+    "estimated_total_cost_usd": 0.0
+  },
+  "failures": []
+}

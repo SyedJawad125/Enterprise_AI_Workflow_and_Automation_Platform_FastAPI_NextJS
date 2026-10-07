@@ -1,0 +1,162 @@
+version: "3.9"
+
+x-common-env: &common-env
+  ENVIRONMENT: development
+  LOG_LEVEL: INFO
+  JWT_SECRET: ${JWT_SECRET:-change-me-to-a-long-random-string}
+  REDIS_URL: redis://redis:6379/0
+  RABBITMQ_URL: amqp://guest:guest@rabbitmq:5672//
+  LLM_PROVIDER: ${LLM_PROVIDER:-mock}
+  AUTH_SERVICE_URL: http://auth-service:8001
+  WORKFLOW_SERVICE_URL: http://workflow-service:8002
+  AI_SERVICE_URL: http://ai-service:8003
+  INTEGRATION_SERVICE_URL: http://integration-service:8004
+  NOTIFICATION_SERVICE_URL: http://notification-service:8005
+  AUDIT_SERVICE_URL: http://audit-service:8006
+
+services:
+  postgres:
+    restart: unless-stopped
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: platform
+      POSTGRES_PASSWORD: platform
+      POSTGRES_DB: platform
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+      - ./infrastructure/postgres/init.sql:/docker-entrypoint-initdb.d/init.sql
+    ports: ["5432:5432"]
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U platform"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  redis:
+    restart: unless-stopped
+    image: redis:7-alpine
+    ports: ["6379:6379"]
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  rabbitmq:
+    restart: unless-stopped
+    image: rabbitmq:3.13-management-alpine
+    ports: ["5672:5672", "15672:15672"]
+    healthcheck:
+      test: ["CMD", "rabbitmq-diagnostics", "-q", "ping"]
+      interval: 10s
+      timeout: 10s
+      retries: 10
+
+  auth-service:
+    restart: unless-stopped
+    build: { context: ., dockerfile: services/auth-service/Dockerfile }
+    environment:
+      <<: *common-env
+      AUTH_DATABASE_URL: postgresql+asyncpg://platform:platform@postgres:5432/platform?options=-csearch_path%3Dauth
+    depends_on:
+      postgres: { condition: service_healthy }
+    ports: ["8001:8001"]
+
+  workflow-service:
+    restart: unless-stopped
+    build: { context: ., dockerfile: services/workflow-service/Dockerfile }
+    environment:
+      <<: *common-env
+      WORKFLOW_DATABASE_URL: postgresql+asyncpg://platform:platform@postgres:5432/platform?options=-csearch_path%3Dworkflow
+    depends_on:
+      postgres: { condition: service_healthy }
+      rabbitmq: { condition: service_healthy }
+      redis: { condition: service_healthy }
+    ports: ["8002:8002"]
+
+  ai-service:
+    restart: unless-stopped
+    build: { context: ., dockerfile: services/ai-service/Dockerfile }
+    environment:
+      <<: *common-env
+      AI_DATABASE_URL: postgresql+asyncpg://platform:platform@postgres:5432/platform?options=-csearch_path%3Dai
+    depends_on:
+      postgres: { condition: service_healthy }
+    ports: ["8003:8003"]
+
+  integration-service:
+    restart: unless-stopped
+    build: { context: ., dockerfile: services/integration-service/Dockerfile }
+    environment:
+      <<: *common-env
+    ports: ["8004:8004"]
+
+  notification-service:
+    restart: unless-stopped
+    build: { context: ., dockerfile: services/notification-service/Dockerfile }
+    environment:
+      <<: *common-env
+    ports: ["8005:8005"]
+
+  audit-service:
+    restart: unless-stopped
+    build: { context: ., dockerfile: services/audit-service/Dockerfile }
+    environment:
+      <<: *common-env
+      AUDIT_DATABASE_URL: postgresql+asyncpg://platform:platform@postgres:5432/platform?options=-csearch_path%3Daudit
+    depends_on:
+      postgres: { condition: service_healthy }
+      rabbitmq: { condition: service_healthy }
+    ports: ["8006:8006"]
+
+  api-gateway:
+    restart: unless-stopped
+    build: { context: ., dockerfile: services/api-gateway/Dockerfile }
+    environment:
+      <<: *common-env
+    depends_on:
+      - auth-service
+      - workflow-service
+      - audit-service
+      - redis
+    ports: ["8000:8000"]
+
+  ai-worker:
+    restart: unless-stopped
+    build: { context: ., dockerfile: workers/ai-worker/Dockerfile }
+    environment:
+      <<: *common-env
+    depends_on:
+      rabbitmq: { condition: service_healthy }
+      redis: { condition: service_healthy }
+
+  integration-worker:
+    restart: unless-stopped
+    build: { context: ., dockerfile: workers/integration-worker/Dockerfile }
+    environment:
+      <<: *common-env
+    depends_on:
+      rabbitmq: { condition: service_healthy }
+      redis: { condition: service_healthy }
+
+  notification-worker:
+    restart: unless-stopped
+    build: { context: ., dockerfile: workers/notification-worker/Dockerfile }
+    environment:
+      <<: *common-env
+    depends_on:
+      rabbitmq: { condition: service_healthy }
+      redis: { condition: service_healthy }
+
+  frontend:
+    restart: unless-stopped
+    image: nginx:alpine
+    volumes:
+      - ./frontend:/usr/share/nginx/html:ro
+    ports: ["3000:80"]
+    depends_on:
+      - api-gateway
+
+volumes:
+  pgdata:
+    restart: unless-stopped
