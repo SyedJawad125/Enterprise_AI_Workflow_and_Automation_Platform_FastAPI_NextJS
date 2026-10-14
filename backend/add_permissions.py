@@ -80,8 +80,9 @@
 """
 add_permissions.py
 ───────────────────
-Seeds all Permission records.
-Fixed: added Windows asyncio fix.
+Seeds all Permission records into the auth-service database.
+Usage:
+    python add_permissions.py
 """
 import asyncio
 import sys
@@ -121,8 +122,8 @@ PERMISSIONS = [
 
 
 async def add_permissions():
-    from app.db.database import AsyncSessionLocal   # ✅ correct path
-    from app.models.user import Permission
+    from services.auth_service.app.db import AsyncSessionLocal
+    from services.auth_service.app.models import Permission
     from sqlalchemy import select
 
     print('🔑 Adding permissions...\n')
