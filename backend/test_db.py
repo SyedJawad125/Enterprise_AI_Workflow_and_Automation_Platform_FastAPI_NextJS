@@ -1,111 +1,159 @@
-# import psycopg2
+"""
+test_db.py
+──────────
+Test PostgreSQL connection and setup for the Enterprise AI Platform.
+This script creates the 'platform' database and enables required extensions.
 
-# # Test connection WITHOUT database name first
-# try:
-#     conn = psycopg2.connect(
-#         host="127.0.0.1",
-#         port=5432,
-#         user="postgres",
-#         password="admin",
-#         database="postgres"   # connect to default DB
-#     )
-#     print("✅ Connected to PostgreSQL successfully!")
-    
-#     conn.autocommit = True
-#     cursor = conn.cursor()
-    
-#     # Create the database
-#     db_name = "AI_Document_Processing_RAG_FastAPI_NextJS"
-#     cursor.execute(f'SELECT 1 FROM pg_database WHERE datname = %s', (db_name,))
-#     exists = cursor.fetchone()
-    
-#     if exists:
-#         print(f"✅ Database '{db_name}' already exists!")
-#     else:
-#         cursor.execute(f'CREATE DATABASE "{db_name}"')
-#         print(f"✅ Database '{db_name}' created successfully!")
-    
-#     cursor.close()
-#     conn.close()
-    
-# except Exception as e:
-#     print(f"❌ Error: {e}")
-
-
-
-# # Add this to test_db.py after creating DB, or run separately
-# import psycopg2
-
-# conn = psycopg2.connect(
-#     host="127.0.0.1",
-#     port=5432,
-#     user="postgres",
-#     password="admin",
-#     database="AI_Document_Processing_RAG_FastAPI_NextJS"
-# )
-# conn.autocommit = True
-# cursor = conn.cursor()
-
-# cursor.execute("CREATE EXTENSION IF NOT EXISTS vector;")
-# cursor.execute('CREATE EXTENSION IF NOT EXISTS "uuid-ossp";')
-# print("✅ Extensions created!")
-
-# cursor.close()
-# conn.close()
-
-
-
-
-
+Usage:
+    python test_db.py
+"""
 import psycopg2
+import sys
+import os
 
-# Step 1: Create database
-conn = psycopg2.connect(
-    host="127.0.0.1",
-    port=5432,
-    user="postgres",
-    password="admin",
-    database="postgres"
-)
-conn.autocommit = True
-cursor = conn.cursor()
-
-db_name = "AI_Document_Processing_RAG_FastAPI_NextJS"
-cursor.execute('SELECT 1 FROM pg_database WHERE datname = %s', (db_name,))
-exists = cursor.fetchone()
-
-if exists:
-    print(f"Database already exists!")
-else:
-    cursor.execute(f'CREATE DATABASE "{db_name}"')
-    print(f"Database created!")
-
-cursor.close()
-conn.close()
+# Database configuration - matches docker-compose.yml
+DB_HOST = os.getenv("DB_HOST", "127.0.0.1")
+DB_PORT = os.getenv("DB_PORT", "5432")
+DB_USER = os.getenv("DB_USER", "platform")
+DB_PASSWORD = os.getenv("DB_PASSWORD", "platform")
+DB_NAME = os.getenv("DB_NAME", "platform")
 
 
+def test_connection():
+    """Test connection to PostgreSQL server"""
+    try:
+        conn = psycopg2.connect(
+            host=DB_HOST,
+            port=DB_PORT,
+            user=DB_USER,
+            password=DB_PASSWORD,
+            database="postgres"  # Connect to default DB first
+        )
+        print("✅ Connected to PostgreSQL successfully!")
+        conn.close()
+        return True
+    except Exception as e:
+        print(f"❌ Error connecting to PostgreSQL: {e}")
+        return False
 
 
+def create_database():
+    """Create the platform database if it doesn't exist"""
+    try:
+        conn = psycopg2.connect(
+            host=DB_HOST,
+            port=DB_PORT,
+            user=DB_USER,
+            password=DB_PASSWORD,
+            database="postgres"
+        )
+        conn.autocommit = True
+        cursor = conn.cursor()
+
+        cursor.execute('SELECT 1 FROM pg_database WHERE datname = %s', (DB_NAME,))
+        exists = cursor.fetchone()
+
+        if exists:
+            print(f"✅ Database '{DB_NAME}' already exists!")
+        else:
+            cursor.execute(f'CREATE DATABASE "{DB_NAME}"')
+            print(f"✅ Database '{DB_NAME}' created successfully!")
+
+        cursor.close()
+        conn.close()
+        return True
+    except Exception as e:
+        print(f"❌ Error creating database: {e}")
+        return False
 
 
-# Step 2: Enable extensions in the new database
-conn2 = psycopg2.connect(
-    host="127.0.0.1",
-    port=5432,
-    user="postgres",
-    password="admin",
-    database="AI_Document_Processing_RAG_FastAPI_NextJS"
-)
-conn2.autocommit = True
-cursor2 = conn2.cursor()
+def enable_extensions():
+    """Enable required PostgreSQL extensions"""
+    try:
+        conn = psycopg2.connect(
+            host=DB_HOST,
+            port=DB_PORT,
+            user=DB_USER,
+            password=DB_PASSWORD,
+            database=DB_NAME
+        )
+        conn.autocommit = True
+        cursor = conn.cursor()
 
-cursor2.execute('CREATE EXTENSION IF NOT EXISTS vector;')
-print("pgvector extension enabled!")
+        # Enable pgvector for vector operations
+        cursor.execute('CREATE EXTENSION IF NOT EXISTS vector;')
+        print("✅ pgvector extension enabled!")
 
-cursor2.execute('CREATE EXTENSION IF NOT EXISTS "uuid-ossp";')
-print("uuid-ossp extension enabled!")
+        # Enable uuid-ossp for UUID generation
+        cursor.execute('CREATE EXTENSION IF NOT EXISTS "uuid-ossp";')
+        print("✅ uuid-ossp extension enabled!")
 
-cursor2.close()
-conn2.close()
+        cursor.close()
+        conn.close()
+        return True
+    except Exception as e:
+        print(f"❌ Error enabling extensions: {e}")
+        return False
 
-print("\nAll done! Now run: alembic upgrade head")
+
+def create_schemas():
+    """Create schemas for each service"""
+    try:
+        conn = psycopg2.connect(
+            host=DB_HOST,
+            port=DB_PORT,
+            user=DB_USER,
+            password=DB_PASSWORD,
+            database=DB_NAME
+        )
+        conn.autocommit = True
+        cursor = conn.cursor()
+
+        schemas = ['auth', 'workflow', 'ai', 'audit', 'integration']
+        for schema in schemas:
+            cursor.execute(f'CREATE SCHEMA IF NOT EXISTS {schema};')
+            print(f"✅ Schema '{schema}' created/verified!")
+
+        cursor.close()
+        conn.close()
+        return True
+    except Exception as e:
+        print(f"❌ Error creating schemas: {e}")
+        return False
+
+
+def main():
+    print("=" * 60)
+    print("🔧 Testing PostgreSQL Setup")
+    print("=" * 60)
+    print(f"\nConfiguration:")
+    print(f"  Host: {DB_HOST}")
+    print(f"  Port: {DB_PORT}")
+    print(f"  User: {DB_USER}")
+    print(f"  Database: {DB_NAME}")
+    print()
+
+    if not test_connection():
+        sys.exit(1)
+
+    if not create_database():
+        sys.exit(1)
+
+    if not enable_extensions():
+        sys.exit(1)
+
+    if not create_schemas():
+        sys.exit(1)
+
+    print("\n" + "=" * 60)
+    print("✅ Database setup completed successfully!")
+    print("=" * 60)
+    print("\nNext steps:")
+    print("  1. Run: python add_permissions.py")
+    print("  2. Run: python populate.py")
+    print("  3. Start services: python start.py auth")
+    print("  4. Or start all: docker compose up")
+
+
+if __name__ == "__main__":
+    main()
