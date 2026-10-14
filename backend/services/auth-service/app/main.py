@@ -59,14 +59,29 @@ async def register(payload: RegisterRequest, db: AsyncSession = Depends(get_db))
     user = User(
         email=payload.email,
         hashed_password=hash_password(payload.password),
+        password_hash=hash_password(payload.password),
         role=payload.role,
+        username=payload.username or payload.email,
+        first_name=payload.first_name,
+        last_name=payload.last_name,
+        full_name=f"{payload.first_name or ''} {payload.last_name or ''}".strip(),
+        is_verified=True,
     )
     db.add(user)
     await db.commit()
     await db.refresh(user)
     logger.info("user registered", extra={"user_id": str(user.id), "role": user.role})
     return UserResponse(
-        id=str(user.id), email=user.email, role=user.role, permissions=permissions_for_role(user.role)
+        id=str(user.id),
+        email=user.email,
+        role=user.role,
+        permissions=permissions_for_role(user.role),
+        username=user.username,
+        first_name=user.first_name,
+        last_name=user.last_name,
+        full_name=user.full_name,
+        is_superuser=user.is_superuser,
+        is_verified=user.is_verified,
     )
 
 
