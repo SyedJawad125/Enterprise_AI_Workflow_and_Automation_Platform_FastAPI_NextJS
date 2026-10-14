@@ -355,7 +355,7 @@
 """
 populate.py
 ────────────
-Seeds roles and users.
+Seeds roles, companies, and users for the auth-service.
 Fixed: async SQLAlchemy, correct imports, Windows fix.
 Keeps your original 3 superuser structure.
 """
@@ -371,9 +371,9 @@ sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
 
 async def populate():
-    from app.db.database import AsyncSessionLocal   # ✅ correct path
-    from app.models.user import Permission, Role, User, Company
-    from app.core.security import hash_password     # ✅ correct path
+    from services.auth_service.app.db import AsyncSessionLocal
+    from services.auth_service.app.models import Permission, Role, User, Company
+    from services.auth_service.app.security import hash_password
     from sqlalchemy import select
 
     print("=" * 60)
@@ -461,6 +461,7 @@ async def populate():
                 last_name     = 'User',
                 full_name     = 'Super User',
                 password_hash = hash_password('Admin@1234'),
+                hashed_password = hash_password('Admin@1234'),
                 is_superuser  = True,
                 is_active     = True,
                 is_verified   = True,
@@ -475,6 +476,7 @@ async def populate():
             u1.is_active     = True
             u1.role_id       = super_role.id
             u1.password_hash = hash_password('Admin@1234')
+            u1.hashed_password = hash_password('Admin@1234')
             print('⏭  Superuser 1 updated')
 
         # ── Step 5: Superuser 2 (your email) ──────────────────────
@@ -491,6 +493,7 @@ async def populate():
                 last_name     = 'Jawad',
                 full_name     = 'Syed Jawad Ali',
                 password_hash = hash_password('Admin@1234'),
+                hashed_password = hash_password('Admin@1234'),
                 is_superuser  = True,
                 is_active     = True,
                 is_verified   = True,
@@ -505,6 +508,7 @@ async def populate():
             u2.is_active     = True
             u2.role_id       = super_role.id
             u2.password_hash = hash_password('Admin@1234')
+            u2.hashed_password = hash_password('Admin@1234')
             print('⏭  Superuser 2 updated')
 
         # ── Step 6: Superuser 3 ────────────────────────────────────
@@ -521,6 +525,7 @@ async def populate():
                 last_name     = 'Nick',
                 full_name     = 'Nice Nick',
                 password_hash = hash_password('Admin@1234'),
+                hashed_password = hash_password('Admin@1234'),
                 is_superuser  = True,
                 is_active     = True,
                 is_verified   = True,
@@ -535,6 +540,7 @@ async def populate():
             u3.is_active     = True
             u3.role_id       = super_role.id
             u3.password_hash = hash_password('Admin@1234')
+            u3.hashed_password = hash_password('Admin@1234')
             print('⏭  Superuser 3 updated')
 
         await db.commit()
@@ -546,7 +552,7 @@ async def populate():
     print("   • superuser@example.com      / Admin@1234")
     print("   • syedjawadali92@gmail.com   / Admin@1234")
     print("   • nicenick1992@gmail.com     / Admin@1234")
-    print("\n   Docs: http://localhost:8000/api/docs")
+    print("\n   Auth Service: http://localhost:8001")
 
 
 if __name__ == '__main__':
