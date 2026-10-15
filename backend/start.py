@@ -39,44 +39,52 @@ import argparse
 
 SERVICES = {
     'gateway': {
-        'module': 'services.api-gateway.app.main:app',
+        'module': 'app.main:app',
         'port': 8000,
         'name': 'API Gateway',
+        'cwd': 'services/api-gateway',
     },
     'auth': {
-        'module': 'services.auth-service.app.main:app',
+        'module': 'app.main:app',
         'port': 8001,
         'name': 'Auth Service',
+        'cwd': 'services/auth-service',
     },
     'workflow': {
-        'module': 'services.workflow-service.app.main:app',
+        'module': 'app.main:app',
         'port': 8002,
         'name': 'Workflow Service',
+        'cwd': 'services/workflow-service',
     },
     'ai': {
-        'module': 'services.ai-service.app.main:app',
+        'module': 'app.main:app',
         'port': 8003,
         'name': 'AI Service',
+        'cwd': 'services/ai-service',
     },
     'integration': {
-        'module': 'services.integration-service.app.main:app',
+        'module': 'app.main:app',
         'port': 8004,
         'name': 'Integration Service',
+        'cwd': 'services/integration-service',
     },
     'notification': {
-        'module': 'services.notification-service.app.main:app',
+        'module': 'app.main:app',
         'port': 8005,
         'name': 'Notification Service',
+        'cwd': 'services/notification-service',
     },
     'audit': {
-        'module': 'services.audit-service.app.main:app',
+        'module': 'app.main:app',
         'port': 8006,
         'name': 'Audit Service',
+        'cwd': 'services/audit-service',
     },
 }
 
 
 def main():
+    import os
     parser = argparse.ArgumentParser(description='Start Enterprise AI Platform Services')
     parser.add_argument('service', nargs='?', default='gateway', choices=list(SERVICES.keys()),
                        help='Service to start (default: gateway)')
@@ -88,13 +96,23 @@ def main():
 
     service = SERVICES[args.service]
     port = args.port or service['port']
+    cwd = service.get('cwd', '.')
 
     cmd = [
         'uvicorn', service['module'],
         '--host', args.host,
         '--port', str(port),
         '--log-level', 'info',
+        '--reload-dir', os.path.abspath(cwd),
     ]
+
+    # Add parent directory to PYTHONPATH for shared modules
+    env = os.environ.copy()
+    parent_dir = os.path.abspath(os.path.join(cwd, '..'))
+    if 'PYTHONPATH' in env:
+        env['PYTHONPATH'] = parent_dir + os.pathsep + env['PYTHONPATH']
+    else:
+        env['PYTHONPATH'] = parent_dir
 
     if args.prod:
         cmd += ['--workers', str(args.workers)]
@@ -106,7 +124,7 @@ def main():
     print(f'   API Docs: http://localhost:{port}/api/docs\n')
 
     try:
-        subprocess.run(cmd)
+        subprocess.run(cmd, cwd=cwd, env=env)
     except KeyboardInterrupt:
         print('\n👋 Server stopped.')
 
