@@ -26,8 +26,14 @@ async def init_db():
     print()
 
     try:
-        from services.auth_service.app.db import engine, Base
-        from services.auth_service.app import models  # Import all models
+        import sys
+        import os
+        auth_service_path = os.path.join(os.path.dirname(__file__), 'services', 'auth-service')
+        if auth_service_path not in sys.path:
+            sys.path.insert(0, auth_service_path)
+
+        from app.db import engine, Base
+        from app import models  # Import all models
 
         async with engine.begin() as conn:
             await conn.run_sync(Base.metadata.create_all)
