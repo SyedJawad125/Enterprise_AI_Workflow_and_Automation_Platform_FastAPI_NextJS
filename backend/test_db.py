@@ -2,7 +2,7 @@
 test_db.py
 ──────────
 Test PostgreSQL connection and setup for the Enterprise AI Platform.
-This script creates the 'platform' database and enables required extensions.
+This script creates the database and enables required extensions.
 
 Usage:
     python test_db.py
@@ -10,13 +10,16 @@ Usage:
 import psycopg2
 import sys
 import os
+from dotenv import load_dotenv
 
-# Database configuration - matches docker-compose.yml
-DB_HOST = os.getenv("DB_HOST", "127.0.0.1")
-DB_PORT = os.getenv("DB_PORT", "5432")
-DB_USER = os.getenv("DB_USER", "platform")
-DB_PASSWORD = os.getenv("DB_PASSWORD", "platform")
-DB_NAME = os.getenv("DB_NAME", "platform")
+load_dotenv()
+
+# Database configuration - use .env values
+DB_HOST = os.getenv("POSTGRES_HOST", "127.0.0.1")
+DB_PORT = os.getenv("POSTGRES_PORT", "5432")
+DB_USER = os.getenv("POSTGRES_USER", "postgres")
+DB_PASSWORD = os.getenv("POSTGRES_PASSWORD", "admin")
+DB_NAME = os.getenv("POSTGRES_DB", "Enterprise_AI_Workflow_and_Automation_Platform_FastAPI_NextJS")
 
 
 def test_connection():
