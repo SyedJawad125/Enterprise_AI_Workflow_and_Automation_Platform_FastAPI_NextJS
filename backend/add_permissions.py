@@ -125,12 +125,18 @@ PERMISSIONS = [
 
 
 async def add_permissions():
-    from services.auth_service.app.db import AsyncSessionLocal
-    from services.auth_service.app.models import Permission
+    import sys
+    import os
+    auth_service_path = os.path.join(os.path.dirname(__file__), 'services', 'auth-service')
+    if auth_service_path not in sys.path:
+        sys.path.insert(0, auth_service_path)
+
+    from app.db import SessionLocal
+    from app.models import Permission
     from sqlalchemy import select
 
     print('🔑 Adding permissions...\n')
-    async with AsyncSessionLocal() as db:
+    async with SessionLocal() as db:
         added = 0
         for perm_data in PERMISSIONS:
             existing = await db.execute(
