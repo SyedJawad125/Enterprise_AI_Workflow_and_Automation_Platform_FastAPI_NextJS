@@ -362,6 +362,9 @@ Keeps your original 3 superuser structure.
 import asyncio
 import sys
 import os
+from dotenv import load_dotenv
+
+load_dotenv()
 
 # Windows fix
 if sys.platform == "win32":
