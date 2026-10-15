@@ -98,14 +98,6 @@ def main():
     port = args.port or service['port']
     cwd = service.get('cwd', '.')
 
-    cmd = [
-        'uvicorn', service['module'],
-        '--host', args.host,
-        '--port', str(port),
-        '--log-level', 'info',
-        '--reload-dir', os.path.abspath(cwd),
-    ]
-
     # Add parent directory to PYTHONPATH for shared modules
     env = os.environ.copy()
     parent_dir = os.path.abspath(os.path.join(cwd, '..'))
@@ -113,6 +105,14 @@ def main():
         env['PYTHONPATH'] = parent_dir + os.pathsep + env['PYTHONPATH']
     else:
         env['PYTHONPATH'] = parent_dir
+
+    cmd = [
+        'uvicorn', service['module'],
+        '--host', args.host,
+        '--port', str(port),
+        '--log-level', 'info',
+        '--reload-dir', os.path.abspath(cwd),
+    ]
 
     if args.prod:
         cmd += ['--workers', str(args.workers)]
