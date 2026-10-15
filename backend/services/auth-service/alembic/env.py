@@ -36,6 +36,7 @@ def run_migrations_offline() -> None:
         dialect_opts={"paramstyle": "named"},
         version_table_schema="auth",
         include_schemas=True,
+        connect_args={"server_settings": {"search_path": "auth"}},
     )
     with context.begin_transaction():
         context.run_migrations()
@@ -47,13 +48,17 @@ def _do_run_migrations(connection) -> None:
         target_metadata=target_metadata,
         version_table_schema="auth",
         include_schemas=True,
+        connect_args={"server_settings": {"search_path": "auth"}},
     )
     with context.begin_transaction():
         context.run_migrations()
 
 
 async def run_migrations_online() -> None:
-    connectable = create_async_engine(DATABASE_URL)
+    connectable = create_async_engine(
+        DATABASE_URL,
+        connect_args={"server_settings": {"search_path": "auth"}}
+    )
     async with connectable.connect() as connection:
         await connection.run_sync(_do_run_migrations)
     await connectable.dispose()
