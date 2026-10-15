@@ -374,16 +374,22 @@ sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
 
 async def populate():
-    from services.auth_service.app.db import AsyncSessionLocal
-    from services.auth_service.app.models import Permission, Role, User, Company
-    from services.auth_service.app.security import hash_password
+    import sys
+    import os
+    auth_service_path = os.path.join(os.path.dirname(__file__), 'services', 'auth-service')
+    if auth_service_path not in sys.path:
+        sys.path.insert(0, auth_service_path)
+
+    from app.db import SessionLocal
+    from app.models import Permission, Role, User, Company
+    from app.security import hash_password
     from sqlalchemy import select
 
     print("=" * 60)
     print("🚀 Starting Database Population")
     print("=" * 60)
 
-    async with AsyncSessionLocal() as db:
+    async with SessionLocal() as db:
 
         # ── Step 1: Super Role ─────────────────────────────────────
         print("\n📋 Step 1: Creating Super Role...")
