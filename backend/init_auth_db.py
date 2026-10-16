@@ -21,7 +21,7 @@ sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 async def init_db():
     """Initialize auth-service database tables"""
     print("=" * 60)
-    print("🚀 Initializing Auth-Service Database Tables")
+    print("Initializing Auth-Service Database Tables")
     print("=" * 60)
     print()
 
@@ -38,16 +38,16 @@ async def init_db():
         async with engine.begin() as conn:
             await conn.run_sync(Base.metadata.create_all)
 
-        print('✅ Auth-service tables created!')
+        print('Auth-service tables created!')
         print("\n" + "=" * 60)
-        print("✅ Database initialization completed successfully!")
+        print("Database initialization completed successfully!")
         print("=" * 60)
         print("\nNext steps:")
         print("  1. Run: python add_permissions.py")
         print("  2. Run: python populate.py")
         print("  3. Start service: python start.py auth")
     except Exception as e:
-        print(f"\n❌ Error initializing database: {e}")
+        print(f"\nError initializing database: {e}")
         raise
 
 
