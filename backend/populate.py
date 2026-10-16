@@ -386,13 +386,13 @@ async def populate():
     from sqlalchemy import select
 
     print("=" * 60)
-    print("🚀 Starting Database Population")
+    print("Starting Database Population")
     print("=" * 60)
 
     async with SessionLocal() as db:
 
-        # ── Step 1: Super Role ─────────────────────────────────────
-        print("\n📋 Step 1: Creating Super Role...")
+        # Step 1: Super Role
+        print("\nStep 1: Creating Super Role...")
         existing_super = (await db.execute(
             select(Role).where(Role.code_name == 'admin')
         )).scalar_one_or_none()
@@ -407,13 +407,13 @@ async def populate():
             super_role.permissions = list(all_perms)
             db.add(super_role)
             await db.flush()
-            print(f'✅ Super role created with {len(all_perms)} permissions')
+            print(f'Super role created with {len(all_perms)} permissions')
         else:
             super_role = existing_super
-            print('⏭  Super role already exists')
+            print('Super role already exists')
 
-        # ── Step 2: Employee Role ──────────────────────────────────
-        print("\n📋 Step 2: Creating Employee Role...")
+        # Step 2: Employee Role
+        print("\nStep 2: Creating Employee Role...")
         existing_emp = (await db.execute(
             select(Role).where(Role.code_name == 'user')
         )).scalar_one_or_none()
@@ -434,12 +434,12 @@ async def populate():
             )
             emp_role.permissions = list(emp_perms)
             db.add(emp_role)
-            print(f'✅ Employee role created with {len(emp_perms)} permissions')
+            print(f'Employee role created with {len(emp_perms)} permissions')
         else:
-            print('⏭  Employee role already exists')
+            print('Employee role already exists')
 
-        # ── Step 3: Default Company ────────────────────────────────
-        print("\n📋 Step 3: Creating Default Company...")
+        # Step 3: Default Company
+        print("\nStep 3: Creating Default Company...")
         company = (await db.execute(
             select(Company).where(Company.slug == 'document-ai-system')
         )).scalar_one_or_none()
@@ -452,12 +452,12 @@ async def populate():
             )
             db.add(company)
             await db.flush()
-            print('✅ Default company created')
+            print('Default company created')
         else:
-            print('⏭  Default company already exists')
+            print('Default company already exists')
 
-        # ── Step 4: Superuser 1 ────────────────────────────────────
-        print("\n📋 Step 4: Creating Superuser 1...")
+        # Step 4: Superuser 1
+        print("\nStep 4: Creating Superuser 1...")
         u1 = (await db.execute(
             select(User).where(User.username == 'superuser')
         )).scalar_one_or_none()
@@ -478,7 +478,7 @@ async def populate():
                 company_id    = company.id,
             )
             db.add(u1)
-            print('✅ Superuser 1 created')
+            print('Superuser 1 created')
             print('   Username: superuser | Password: Admin@1234')
         else:
             u1.is_superuser  = True
@@ -486,10 +486,10 @@ async def populate():
             u1.role_id       = super_role.id
             u1.password_hash = hash_password('Admin@1234')
             u1.hashed_password = hash_password('Admin@1234')
-            print('⏭  Superuser 1 updated')
+            print('Superuser 1 updated')
 
-        # ── Step 5: Superuser 2 (your email) ──────────────────────
-        print("\n📋 Step 5: Creating Superuser 2...")
+        # Step 5: Superuser 2 (your email)
+        print("\nStep 5: Creating Superuser 2...")
         u2 = (await db.execute(
             select(User).where(User.email == 'syedjawadali92@gmail.com')
         )).scalar_one_or_none()
@@ -510,7 +510,7 @@ async def populate():
                 company_id    = company.id,
             )
             db.add(u2)
-            print('✅ Superuser 2 created')
+            print('Superuser 2 created')
             print('   Email: syedjawadali92@gmail.com | Password: Admin@1234')
         else:
             u2.is_superuser  = True
@@ -518,10 +518,10 @@ async def populate():
             u2.role_id       = super_role.id
             u2.password_hash = hash_password('Admin@1234')
             u2.hashed_password = hash_password('Admin@1234')
-            print('⏭  Superuser 2 updated')
+            print('Superuser 2 updated')
 
-        # ── Step 6: Superuser 3 ────────────────────────────────────
-        print("\n📋 Step 6: Creating Superuser 3...")
+        # Step 6: Superuser 3
+        print("\nStep 6: Creating Superuser 3...")
         u3 = (await db.execute(
             select(User).where(User.email == 'nicenick1992@gmail.com')
         )).scalar_one_or_none()
@@ -542,7 +542,7 @@ async def populate():
                 company_id    = company.id,
             )
             db.add(u3)
-            print('✅ Superuser 3 created')
+            print('Superuser 3 created')
             print('   Email: nicenick1992@gmail.com | Password: Admin@1234')
         else:
             u3.is_superuser  = True
@@ -550,14 +550,14 @@ async def populate():
             u3.role_id       = super_role.id
             u3.password_hash = hash_password('Admin@1234')
             u3.hashed_password = hash_password('Admin@1234')
-            print('⏭  Superuser 3 updated')
+            print('Superuser 3 updated')
 
         await db.commit()
 
     print("\n" + "=" * 60)
-    print("✅ Database Population Completed Successfully!")
+    print("Database Population Completed Successfully!")
     print("=" * 60)
-    print("\n📋 Login credentials:")
+    print("\nLogin credentials:")
     print("   • superuser@example.com      / Admin@1234")
     print("   • syedjawadali92@gmail.com   / Admin@1234")
     print("   • nicenick1992@gmail.com     / Admin@1234")
