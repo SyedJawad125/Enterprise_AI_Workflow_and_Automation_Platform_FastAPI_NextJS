@@ -1,193 +1,29 @@
-<!-- # HireMind AI — Backend
-
-AI-Powered Resume Screening & Recruitment Automation Platform (API only — Next.js frontend comes later).
-
-## Stack
-FastAPI · SQLAlchemy 2.x (async) · PostgreSQL + pgvector · Alembic · JWT auth · Docker
-**AI:** LangChain (structured output via tool-calling, prompt templates, streaming chains) + LangGraph (2 compiled state machines) + langchain-groq (ChatGroq) + Sentence-Transformers + PyMuPDF/Tesseract
-
-## Status: Core platform complete — Auth, Jobs, Resume Pipeline, Matching, Search, Interviews, Async Processing, Evaluation
-This build ships a running FastAPI app with:
-- Health check (`/api/v1/health`) that verifies DB connectivity
-- Full auth flow + dynamic RBAC (`User`, `Role`, `Permission`, `Company`, `UserToken`)
-- **Jobs**: create (runs the Job Analysis Agent), list, detail
-- **Resume pipeline**: upload → queued instantly → Celery worker runs PyMuPDF extraction → Tesseract OCR fallback → Resume Parser Agent → structured `Candidate` → Sentence-Transformers embedding → pgvector. Poll `GET /api/v1/processing/{resume_id}` for status.
-- **LangChain**: every agent (Job Analysis, Resume Parser, Interview Question Generator, Interview Evaluator, and the LangGraph evaluation node) is built as `ChatPromptTemplate | ChatGroq.with_structured_output(PydanticModel)` — forced schema compliance via the model's native tool-calling, not hand-rolled `json.loads()`. See `app/llm/langchain_client.py`.
-- **Two LangGraph workflows**: (1) the recruitment scoring graph — `load_data → matching → evidence → evaluation → decision → shortlist/review_reject`; (2) an **agentic RAG graph** — `retrieve → grade → (rewrite_query → retrieve)* → generate` (Corrective RAG pattern), exposed via `POST /api/v1/search/chat`.
-- **Agentic RAG + streaming**: retrieval isn't a single pgvector query — an LLM grades whether retrieved candidates actually address the recruiter's question and, if not, rewrites the query and retries (bounded by `MAX_AGENT_ITERATIONS` + `AGENT_TIMEOUT`, toggle off with `USE_AGENT_MODE=false`). `POST /api/v1/search/chat/stream` streams the final grounded answer token-by-token over SSE once retrieval settles, using the same `prompt | llm | StrOutputParser()` chain as the non-streaming path.
-- **LangSmith tracing**: set `LANGCHAIN_API_KEY` in `.env` and every agent call, both graphs, and the grading/rewrite loop are automatically traced — wired once in `app/llm/langchain_client.py`, no per-call code.
-- **Matching Engine**: transparent, weighted, reproducible scoring — zero LLM calls in the scoring math itself, unit tested.
-- **Evidence retrieval**: grounded verbatim resume excerpts, never LLM-generated.
-- **Semantic search** over pgvector + **candidate comparison**.
-- **AI Interview System**: Interview Agent generates job-specific questions, candidates submit answers, Evaluation Agent scores across a 5-dimension rubric (technical knowledge, problem solving, communication, role fit, overall) with per-question feedback.
-- **Celery + Redis**: resume processing runs in a background worker, not on the request thread — uploads return `202 Accepted` immediately even for large batches.
-- **Evaluation framework**: synthetic resume/job datasets, precision/recall/F1 on skill extraction, experience-extraction accuracy with tolerance, latency/token/cost tracking, and a mocked-LLM test suite that verifies the whole metrics pipeline without hitting a paid API.
-- Docker Compose (pgvector-enabled Postgres + Redis + backend + Celery worker, all with healthchecks)
-- 19 automated tests, all passing without any live external service (LLM calls mocked at the LangChain boundary — including the agentic loop's grading/rewriting decisions)
-
-**Still open** (by design, not oversight): rate limiting/observability middleware, and the Next.js frontend.
-
-## Getting Started
-
-```bash
-cp .env.example .env          # set JWT_SECRET_KEY and GROQ_API_KEY at minimum
-docker compose up --build
-```
-
-Once containers are healthy, run migrations and seed default roles:
-
-```bash
-docker compose exec backend alembic revision --autogenerate -m "init schema"
-docker compose exec backend alembic upgrade head
-docker compose exec backend python -m scripts.seed_roles
-```
-
-API docs: http://localhost:8000/docs · Health: http://localhost:8000/api/v1/health
-
-To run a Celery worker locally without Docker:
-```bash
-celery -A app.tasks.celery_app worker --loglevel=info --concurrency=4
-```
-
-## Testing in Postman — a full walkthrough
-1. `POST /api/v1/auth/register` — create an account with `company_name`
-2. `POST /api/v1/auth/login` — get `access_token`
-3. `POST /api/v1/jobs` — `{"title": "...", "description": "..."}` → structured requirements
-4. `POST /api/v1/jobs/{job_id}/resumes` — multipart, field `files` → returns `202` with `resume_id`s immediately
-5. `GET /api/v1/processing/{resume_id}` — poll until `status: "completed"`
-6. `POST /api/v1/jobs/{job_id}/screen` — runs the LangGraph workflow for every uploaded candidate
-7. `GET /api/v1/jobs/{job_id}/candidates` — ranked list with scores
-8. `GET /api/v1/candidates/{candidate_id}/score?job_id=...` — full explainable breakdown + evidence
-9. `POST /api/v1/interviews` — `{"job_id": "...", "candidate_id": "...", "num_questions": 5}`
-10. `POST /api/v1/interviews/{id}/answers` — `{"answers": {"<question_id>": "..."}}`
-11. `POST /api/v1/interviews/{id}/evaluate` — 5-dimension technical assessment
-12. `POST /api/v1/search/candidates` — `{"query": "candidates with FastAPI and RAG experience"}`
-13. `POST /api/v1/candidates/compare` — `{"job_id": "...", "candidate_ids": ["...", "..."]}`
-
-Note: a freshly registered user has no `role_id` and `is_superuser=False`, so
-superuser-only routes (`/users/`, `/users/roles/`, `/users/companies/`) will
-403 until you flip `is_superuser=True` directly in the DB for your first
-account, or assign a seeded `admin` role's id to `role_id`.
-
-## Running Tests
-```bash
-pip install -r requirements.txt
-pytest -v
-```
-21 tests, all mocked or pure-function — no live Postgres/Redis/LLM required to run the suite.
-
-## Running the Evaluation Report (requires a live GROQ_API_KEY)
-```bash
-python -m scripts.run_evaluation
-```
-Writes `evaluation/reports/resume_parsing_report.json` and `job_analysis_report.json` with precision/recall/F1 per dataset item.
-
-
-## Project Structure
-```
-hiremind-ai-backend/
-├── app/
-│   ├── main.py
-│   ├── core/                     # config.py, security.py, exceptions.py
-│   ├── db/database.py
-│   ├── models/                   # user, job, candidate, resume, embedding, application, interview
-│   ├── schemas/                  # auth, user, job, candidate, interview
-│   ├── repositories/user_repository.py
-│   ├── dependencies/auth.py
-│   ├── llm/client.py              # provider-agnostic LLM client, retries, structured JSON
-│   ├── document_processing/       # extractor.py (PyMuPDF + OCR fallback), ocr.py (swappable)
-│   ├── embeddings/service.py      # Sentence-Transformers → pgvector
-│   ├── agents/
-│   │   ├── job_analysis_agent.py
-│   │   ├── resume_parser_agent.py
-│   │   ├── interview_agent.py            # question generation
-│   │   └── interview_evaluation_agent.py # answer scoring
-│   ├── workflows/                 # LangGraph state machine
-│   │   ├── state.py               # RecruitmentState TypedDict
-│   │   ├── nodes.py               # load_data / matching / evidence / evaluation / decision / shortlist / review_reject
-│   │   └── graph.py               # StateGraph wiring + conditional routing
-│   ├── tasks/                     # Celery
-│   │   ├── celery_app.py
-│   │   └── resume_tasks.py
-│   ├── evaluation/                # pure metrics — no LLM, no DB
-│   │   ├── schemas.py
-│   │   └── metrics.py             # precision/recall/F1, experience accuracy, cost estimation
-│   ├── services/
-│   │   ├── job_service.py / resume_service.py (queue + pipeline split for Celery)
-│   │   ├── matching_service.py    # thin wrapper around the LangGraph workflow
-│   │   ├── matching_engine.py     # pure scoring math — unit tested
-│   │   ├── evidence_service.py / search_service.py / interview_service.py
-│   ├── api/v1/
-│   │   ├── auth.py / users.py / health.py
-│   │   ├── jobs.py / candidates.py / search.py / processing.py / interviews.py
-│   └── utils/response.py
-├── scripts/
-│   ├── seed_roles.py
-│   └── run_evaluation.py          # scores agents against evaluation/datasets/, writes reports
-├── evaluation/
-│   ├── datasets/                  # sample_resumes.json, sample_jobs.json (synthetic)
-│   └── reports/                   # generated by run_evaluation.py
-├── alembic/ (env.py — async, auto-creates pgvector extension)
-├── tests/
-│   ├── test_health.py
-│   ├── test_matching_engine.py    # pure-function, deterministic
-│   └── test_evaluation.py         # mocked-LLM, verifies metrics pipeline
-├── requirements.txt / Dockerfile / docker-compose.yml / alembic.ini / .env.example / pytest.ini
-```
-
-## Remaining Work
-| Item | Notes |
-|---|---|
-| Rate limiting / structured observability | `slowapi` or a Redis-backed limiter + structured request/LLM-call logging middleware |
-| Frontend | Next.js — not started, per your instructions to do backend only for now |
-
-## Design Decisions Worth Knowing for an Interview
-- **Scoring is deterministic, not LLM-guessed.** `matching_engine.py` has zero LLM calls. Same inputs always produce the same score (tested in `test_matching_engine.py`).
-- **The LangGraph Evaluation node is qualitative-only by construction.** It receives the already-computed matched/missing skills and evidence and is explicitly prompted never to output or imply a numeric score — so even if the LLM misbehaves, it can't override the deterministic score.
-- **Evidence is retrieved, never generated.** Keyword search over page-attributed resume text; explicitly returns "Evidence not found in resume." rather than fabricating a plausible sentence.
-- **Celery tasks own their own event loop.** `resume_tasks.py` calls `asyncio.run()` inside a sync Celery task rather than trying to share an event loop across tasks — the correct pattern for mixing Celery (sync, process-based) with an async SQLAlchemy/LLM stack.
-- **OCR and LLM provider are both swappable via one env var** behind abstract interfaces — no call site elsewhere in the app knows which concrete provider is active.
-- **Resume status IS the processing-job tracker.** No separate `processing_jobs` table — a resume's own `status` field (`queued/processing/completed/failed`) covers everything the batch-upload flow needs. Added only if/when something else needs the same tracking (YAGNI over the letter of the original schema list).
-- **Evaluation metrics are pure functions, mirroring the matching engine's philosophy** — precision/recall/F1 computed by ordinary set arithmetic, not by asking an LLM to grade another LLM's output.
-
-## Security Notes
-- Passwords hashed with bcrypt; JWT access (30 min) + refresh (7 days), refresh tokens stored hashed
-- All secrets via environment variables — never committed
-- Login lockout after 5 failed attempts; forgot-password never reveals whether an email exists
-- Resume content treated as untrusted input: extension/size validated before processing, LLM prompts are extraction-only, structured output is Pydantic-validated before touching Postgres
-- Scoring never uses protected characteristics — the matching engine only ever sees `skills`, `experience_years`, `projects`, and embeddings of professional text -->
-
-
-
-
-
-
 <div align="center">
 
-# 🎯 HireMind AI
+# ⚙️ Enterprise AI Workflow & Automation Platform
 
-### AI-Powered Resume Screening & Recruitment Automation Platform
+### FastAPI Microservices · Event-Driven Architecture · Human-in-the-Loop AI
 
-<em>Upload Resumes → OCR → Parse → Embed → Match → Explain → Interview → Evaluate</em>
+<em>Create Workflow → AI Analysis (LangGraph) → Risk Gate → Human Approval → Integration Action → Notify → Audit</em>
 
 <br/>
 
 ![Python](https://img.shields.io/badge/Python-3.12+-3776AB?style=for-the-badge&logo=python&logoColor=white)
 ![FastAPI](https://img.shields.io/badge/FastAPI-0.115-009688?style=for-the-badge&logo=fastapi&logoColor=white)
-![PostgreSQL](https://img.shields.io/badge/PostgreSQL_16-pgvector-336791?style=for-the-badge&logo=postgresql&logoColor=white)
-![LangChain](https://img.shields.io/badge/LangChain-0.3-1C3C3C?style=for-the-badge)
-![LangGraph](https://img.shields.io/badge/LangGraph-0.2-FF6B35?style=for-the-badge)
+![PostgreSQL](https://img.shields.io/badge/PostgreSQL_16-Schema--per--Service-336791?style=for-the-badge&logo=postgresql&logoColor=white)
+![RabbitMQ](https://img.shields.io/badge/RabbitMQ-3.13-FF6600?style=for-the-badge&logo=rabbitmq&logoColor=white)
+![Celery](https://img.shields.io/badge/Celery-5.4-37814A?style=for-the-badge&logo=celery&logoColor=white)
 
-![Groq](https://img.shields.io/badge/Groq-LLM-F55036?style=for-the-badge)
-![Celery](https://img.shields.io/badge/Celery-Redis-37814A?style=for-the-badge&logo=celery&logoColor=white)
+![Redis](https://img.shields.io/badge/Redis-7-DC382D?style=for-the-badge&logo=redis&logoColor=white)
+![LangGraph](https://img.shields.io/badge/LangGraph-0.2-FF6B35?style=for-the-badge)
 ![Docker](https://img.shields.io/badge/Docker-Compose-2496ED?style=for-the-badge&logo=docker&logoColor=white)
-![Tests](https://img.shields.io/badge/Tests-19%20passing-brightgreen?style=for-the-badge&logo=pytest&logoColor=white)
-![License](https://img.shields.io/badge/License-MIT-green?style=for-the-badge)
+![Tests](https://img.shields.io/badge/Tests-46%20passing-brightgreen?style=for-the-badge&logo=pytest&logoColor=white)
+![Status](https://img.shields.io/badge/Status-Portfolio%20Project-orange?style=for-the-badge)
 
 <br/>
 
-**A production-style AI recruitment backend — not a "resume in, ChatGPT out" demo.**
-Deterministic scoring. Grounded evidence. Self-correcting retrieval. Fully async, fully tested.
+**A distributed backend where AI is one component of a larger system — not the whole app.**
+7 independently deployable services. Real event-driven retries and dead-letter queues. A human always approves the risky action.
 
 <br/>
 
@@ -204,9 +40,9 @@ Deterministic scoring. Grounded evidence. Self-correcting retrieval. Fully async
 - [About](#-about)
 - [Features](#-features)
 - [Architecture](#️-architecture)
-- [Resume Processing Pipeline](#-resume-processing-pipeline)
-- [Recruitment LangGraph Workflow](#-recruitment-langgraph-workflow)
-- [Agentic RAG Search](#-agentic-rag-search-corrective-rag)
+- [Workflow Execution State Machine](#-workflow-execution-state-machine)
+- [AI Reasoning Flow (LangGraph)](#-ai-reasoning-flow-langgraph)
+- [RabbitMQ Retry & Dead-Letter Design](#-rabbitmq-retry--dead-letter-design)
 - [Tech Stack](#️-tech-stack)
 - [Project Structure](#-project-structure)
 - [Quick Start](#-quick-start)
@@ -215,7 +51,7 @@ Deterministic scoring. Grounded evidence. Self-correcting retrieval. Fully async
 - [API Examples](#-api-examples)
 - [Database Schema](#️-database-schema)
 - [Security](#-security-features)
-- [Test Credentials](#-test-credentials)
+- [Testing](#-testing)
 - [Design Decisions](#-design-decisions-worth-knowing-for-an-interview)
 - [Roadmap](#️-roadmap)
 
@@ -223,38 +59,40 @@ Deterministic scoring. Grounded evidence. Self-correcting retrieval. Fully async
 
 ## 📌 About
 
-Recruiters receive hundreds of resumes per job. **HireMind AI** automates the screening pipeline end to end while keeping every decision explainable and auditable:
+Real enterprise workflows aren't "call an LLM, return the answer." They're multi-step, they touch external systems, they sometimes fail halfway through, and some decisions are too risky to let an AI make alone.
 
-> Recruiter creates a job → **Job Analysis Agent** extracts structured requirements → recruiter uploads resumes → OCR/parsing/embedding run in the background via Celery → a **deterministic weighted matching engine** scores every candidate with cited resume evidence → shortlisted candidates receive AI-generated interview questions → answers are evaluated on a 5-dimension rubric.
+**This platform demonstrates that distributed-systems reality**, using a customer-refund workflow as the running example:
 
-Built to demonstrate real AI *system* architecture, not just an LLM API call wrapped in a route:
+> A customer request comes in → **AI Service** runs a LangGraph reasoning flow (intent → plan → tool lookups → decision) → if the refund is high-risk, the workflow pauses for **human approval** → once approved, **Integration Service** executes the refund idempotently → **Notification Service** tells the customer → every step along the way is published to **Audit Service** for a full, correlation-ID-traceable record.
+
+Built to demonstrate real distributed-systems and AI-safety architecture, not just an LLM call wrapped in a route:
 
 <table>
 <tr>
 <td width="50%">
 
-**🧮 Deterministic, not vibes-based**
-The matching score is a weighted formula over structured data — zero LLM calls in the scoring path. Same inputs, same score, every time.
+**🧍 Human-in-the-loop by construction**
+The AI recommends; it never executes a side effect. Integration Service's refund endpoint is only ever called by a worker acting on an explicit approval — structurally, not by convention.
 
 </td>
 <td width="50%">
 
-**🔎 Self-correcting retrieval**
-Search doesn't stop at one vector query. A LangGraph agent grades relevance and rewrites the query when retrieval comes up weak — bounded, never infinite.
+**♻️ Real retries, real dead-letter queues**
+A fixed 5s/15s/30s retry schedule, but only for errors that could plausibly succeed on retry. A 4xx fails once, immediately. Exhausted retries land in an inspectable RabbitMQ DLQ, not a swallowed log line.
 
 </td>
 </tr>
 <tr>
 <td width="50%">
 
-**📎 Evidence, not hallucination**
-Every claim about a candidate is grounded in a verbatim resume excerpt. If it's not in the resume, the system says so explicitly.
+**🔁 Idempotent by design**
+Both workflow execution and the refund call accept an `Idempotency-Key`. A retried request — or a Celery redelivery after a crash — returns the original result instead of doing the work twice.
 
 </td>
 <td width="50%">
 
-**⚙️ Non-blocking by design**
-Resume uploads return instantly (`202 Accepted`) and process in a Celery worker — a 100-resume batch never ties up the API.
+**🧵 Traceable end to end**
+One `correlation_id` is generated at the Gateway and threaded through every HTTP call, every Celery task, and every audit event — across all 7 services — so one failed execution can be reconstructed from logs alone.
 
 </td>
 </tr>
@@ -266,158 +104,209 @@ Resume uploads return instantly (`202 Accepted`) and process in a Celery worker 
 
 | Feature | Description | Status |
 |---|---|:---:|
-| 📋 Job Analysis Agent | Job description → structured required/preferred skills, weights, experience threshold | ✅ |
-| 📄 Resume Upload | Multipart batch upload, validated, queued instantly | ✅ |
-| 🔍 Text Extraction | PyMuPDF for digital PDFs + DOCX | ✅ |
-| 🖼️ OCR Fallback | Tesseract, auto-triggered per-page for scanned PDFs | ✅ |
-| 🧩 Resume Parser Agent | Resume text → structured candidate profile | ✅ |
-| 🧠 Embeddings | sentence-transformers, local, 384-dim, zero API cost | ✅ |
-| 🗄️ Vector Store | PostgreSQL + pgvector, cosine similarity | ✅ |
-| ⚖️ Matching Engine | Deterministic weighted scoring — skills 35% · experience 20% · semantic 20% · projects 15% · preferred 10% | ✅ |
-| 🔬 Evidence Retrieval | Grounded verbatim resume excerpts, never hallucinated | ✅ |
-| 🤖 Recruitment LangGraph | load_data → matching → evidence → evaluation → decision → shortlist/reject | ✅ |
-| 🔎 Agentic RAG Search | Corrective RAG: retrieve → grade → rewrite → retry | ✅ |
-| 💬 Streaming Chat | SSE token-by-token grounded candidate Q&A | ✅ |
-| 🎤 AI Interview System | Question generation + 5-dimension answer evaluation | ✅ |
-| 📊 Evaluation Framework | Precision/recall/F1, mocked-LLM CI tests, synthetic datasets | ✅ |
-| ⚙️ Celery + Redis | Non-blocking background resume processing | ✅ |
-| 🔐 JWT + RBAC | 23 permissions, 3 roles, superuser bypass, login lockout | ✅ |
-| 📡 LangSmith Tracing | Every agent/graph call traced automatically | ✅ |
+| 🚪 API Gateway | Single public entry point — JWT verification, RBAC, rate limiting, CORS, correlation IDs | ✅ |
+| 🔐 Auth Service | JWT access + refresh tokens, rotation-on-use, 4 roles × 7 permissions | ✅ |
+| 🧠 Workflow Service | The state machine — executions, step tracking, approvals, idempotent execute | ✅ |
+| 🤖 AI Service | LangGraph reasoning flow, pluggable `LLMProvider`, Pydantic-validated structured output | ✅ |
+| 🔌 Integration Service | Mocked Customer/Order/Ticket/Payment APIs, idempotent refund endpoint | ✅ |
+| 📣 Notification Service | Mock email/in-app/webhook delivery abstraction | ✅ |
+| 📜 Audit Service | Immutable event log, raw-AMQP consumer with retry cascade + DLQ | ✅ |
+| ⚙️ 3 Celery Workers | ai-worker, integration-worker, notification-worker — async, retried, dead-letterable | ✅ |
+| 🧍 Human-in-the-Loop Gate | `WAITING_FOR_APPROVAL` state; AI can never bypass it | ✅ |
+| 🔁 Idempotency | On workflow execution *and* the refund call, not just one of them | ✅ |
+| 🪪 Correlation IDs | Propagated both directions — including worker-to-service callbacks | ✅ |
+| ♻️ Retry / DLQ | Fixed 5s/15s/30s schedule, retryable-error classification, real RabbitMQ dead-lettering | ✅ |
+| 🏥 Health & Readiness | `/health` (liveness) + `/ready` (timeout-bounded dependency checks) | ✅ |
+| 🗄️ Schema-per-Service | 5 Postgres schemas, zero cross-schema access | ✅ |
+| 🧮 Alembic Migrations | Real, async-aware migration on workflow-service (reference pattern) | ✅ |
+| 📊 AI Evaluation Harness | 100 synthetic requests → intent/structured-output/approval-gate accuracy | ✅ |
+| 🧪 46 Automated Tests | Per-service suites, isolated by `PYTHONPATH`, zero shared-package collisions | ✅ |
+| 🌐 E2E Test Suite | Hits the real running stack over HTTP, self-skips if the stack isn't up | ✅ |
+| 🐳 No-Docker Mode | `python start.py` — SQLite + single venv, real RabbitMQ/Redis still required | ✅ |
+| 📬 Postman Collection | Full endpoint list with auto-token-capture scripts | ✅ |
 
 ---
 
 ## 🏗️ Architecture
 
 ```
-┌───────────────────────────────────────────────────┐
-│              Next.js Frontend (planned)            │
-└──────────────────────┬──────────────────────────────┘
-                        │ REST API
+                              ┌────────────────────┐
+                              │  Frontend (static)  │
+                              └──────────┬───────────┘
+                                         │ HTTPS
+                                         ▼
+                              ┌────────────────────┐
+                              │    API Gateway      │   JWT · RBAC · Rate Limit · CORS
+                              │      :8000          │   Correlation-ID origin
+                              └──────────┬───────────┘
+                     ┌────────────────────┼────────────────────┐
+                     ▼                    ▼                    ▼
+            ┌────────────────┐  ┌──────────────────┐  ┌────────────────┐
+            │  Auth Service   │  │ Workflow Service  │  │ Audit Service  │
+            │     :8001       │  │      :8002        │  │     :8006      │
+            │  JWT · RBAC     │  │  State Machine     │  │  Event Log     │
+            └─────────────────┘  │  Approvals         │  │  Retry+DLQ     │
+                                  └─────────┬──────────┘  └────────▲───────┘
+                                            │ dispatch              │ events
+                                            ▼ (Celery / RabbitMQ)    │
+                        ┌──────────────────┼───────────────────┐    │
+                        ▼                  ▼                   ▼    │
+                ┌───────────────┐ ┌───────────────────┐ ┌─────────────────┐
+                │   ai-worker    │ │ integration-worker │ │ notification-   │
+                │                │ │                     │ │    worker       │
+                └───────┬────────┘ └──────────┬──────────┘ └────────┬────────┘
+                        │ HTTP                 │ HTTP                │ HTTP
+                        ▼                      ▼                     ▼
+                ┌───────────────┐ ┌───────────────────┐ ┌─────────────────┐
+                │  AI Service    │ │ Integration Service │ │ Notification    │
+                │    :8003       │ │       :8004          │ │ Service :8005   │
+                │  LangGraph     │ │  Mock Customer/Order/ │ │  Mock email/    │
+                │  LLMProvider   │ │  Ticket/Payment APIs  │ │  in-app/webhook │
+                └───────┬────────┘ └───────────────────────┘ └─────────────────┘
+                        │ controlled tool calls
                         ▼
-┌───────────────────────────────────────────────────┐
-│                 FastAPI Backend                    │
-│                                                     │
-│  ┌────────┐ ┌──────┐ ┌───────────┐ ┌────────────┐  │
-│  │  Auth  │ │ Jobs │ │Candidates │ │ Interviews │  │
-│  │ Routes │ │Routes│ │  Routes   │ │   Routes   │  │
-│  └────────┘ └──┬───┘ └───────────┘ └──────┬─────┘  │
-│                │                          │        │
-│   ┌────────────▼──────────┐   ┌───────────▼─────┐  │
-│   │ Recruitment LangGraph │   │  Interview /    │  │
-│   │ load_data→matching→   │   │  Evaluation     │  │
-│   │ evidence→evaluation→  │   │  Agents         │  │
-│   │ decision→shortlist    │   └─────────────────┘  │
-│   └────────────┬──────────┘                        │
-│                │                                    │
-│   ┌────────────▼──────────┐                         │
-│   │  Agentic RAG LangGraph │                        │
-│   │  retrieve→grade→       │                        │
-│   │  rewrite→retry         │                        │
-│   └────────────┬──────────┘                         │
-│                │                                    │
-│  ┌─────────────▼──┐ ┌──────────┐ ┌───────────────┐  │
-│  │   Groq LLM      │ │ pgvector │ │Sentence-      │  │
-│  │  (via LangChain,│ │ (Vector  │ │Transformers   │  │
-│  │  structured out)│ │  Search) │ │(Embeddings)   │  │
-│  └─────────────────┘ └──────────┘ └───────────────┘  │
-│                                                       │
-│  ┌──────────────────────────────────────────────┐   │
-│  │        Celery Worker (Redis broker)           │   │
-│  │  resume extraction → OCR → parse → embed      │   │
-│  └──────────────────────────────────────────────┘   │
-└──────────────────────┬────────────────────────────────┘
-                        ▼
-┌───────────────────────────────────────────────────┐
-│           PostgreSQL 16 + pgvector                  │
-│                                                     │
-│  users  roles  permissions  companies              │
-│  jobs  job_requirements  candidates  resumes        │
-│  candidate_embeddings (VECTOR 384)  applications    │
-│  candidate_scores  interviews  interview_questions  │
-│  interview_answers  evaluation_results              │
-└───────────────────────────────────────────────────┘
+                (back into Integration Service — read-only lookups only)
+
+              ────────────────────────  Infrastructure  ────────────────────────
+              PostgreSQL 16 (schema-per-service)  ·  Redis (rate limit + Celery backend)
+              RabbitMQ (Celery broker + audit topic exchange, retry cascade, DLQs)
 ```
+
+Every worker reports back to Workflow Service over HTTP after it finishes — that callback is what advances the state machine. Nothing polls; everything is event-driven or explicitly dispatched.
 
 ---
 
-## 🔄 Resume Processing Pipeline
+## 🔄 Workflow Execution State Machine
 
 ```
-Resume Upload (multipart, batch)
-        ↓
-Validate (extension + size) → Save to disk → Resume row: QUEUED
-        ↓                                          ↓ (202 response — API returns immediately)
-        └──────────────► Celery Task (Redis) ◄─────┘
-                                ↓
-                    PyMuPDF Text Extraction
-                                ↓
-                    Text sufficient per page?
-                       YES → use directly
-                       NO  → Tesseract OCR (page-level fallback)
-                                ↓
-                    Resume Parser Agent (LangChain structured output)
-                                ↓
-                    Structured Candidate → PostgreSQL
-                                ↓
-                    Sentence-Transformers Embedding (384-dim)
-                                ↓
-                    Stored in candidate_embeddings (pgvector)
-                                ↓
-                    Resume status → COMPLETED ✅
+   CREATE WORKFLOW
+         │
+         ▼
+   POST .../execute  (Idempotency-Key honored)
+         │
+         ▼
+      QUEUED → RUNNING  ──────► dispatch: ai_analysis step
+                                        │
+                                        ▼
+                              AI Service runs LangGraph
+                                        │
+                     ┌──────────────────┼───────────────────┐
+                     ▼                  ▼                    ▼
+              requires_approval   low-risk, auto-proceed   lookup failed
+                     │                  │                    │
+                     ▼                  ▼                    ▼
+          WAITING_FOR_APPROVAL   dispatch: execute_action   FAILED
+                     │                  │               (fail-safe — never
+           ┌─────────┴─────────┐        │                silently approved)
+           ▼                   ▼        │
+       approve              reject       │
+           │                   │         │
+           ▼                   ▼         │
+  dispatch: execute_action  CANCELLED     │
+           │                   │         │
+           └─────────┬─────────┘         │
+                      ▼                  ▼
+              dispatch: notify  ◄─────────┘
+                      │
+                      ▼
+            COMPLETED / FAILED
+                      │
+                      ▼
+              (audit trail complete,
+               queryable by correlation_id)
 ```
+
+> A failed customer/order lookup during AI analysis routes straight to `FAILED` — not to human approval. Asking a human to approve a decision built on missing data would be the wrong default, so the system doesn't do that.
 
 ---
 
-## 🤖 Recruitment LangGraph Workflow
+## 🧠 AI Reasoning Flow (LangGraph)
 
 ```
-                    START
-                      │
-                      ▼
-               load_data (fetch job requirements, candidate profile, embeddings)
-                      │
-                      ▼
-                  matching (deterministic weighted scoring — zero LLM calls)
-                      │
-                      ▼
-                  evidence (grounded resume excerpt retrieval — zero LLM calls)
-                      │
-                      ▼
-                 evaluation (LLM narrates matched skills — CANNOT set the score)
-                      │
-                      ▼
-                  decision (SHORTLIST / REVIEW / REJECT)
-                  /                              \
-                 ▼                                ▼
-            shortlist                       review_reject
-                 \                                /
-                  \                              /
-                        END
+            INPUT (input_text, customer_id, order_id)
+                           │
+                           ▼
+                   intent_analysis
+              (classify: refund / support / general)
+                           │
+                           ▼
+                       planning
+             (which lookups does this intent need?)
+                           │
+                           ▼
+                   tool_execution
+        (controlled, Pydantic-validated tool calls only —
+         customer_lookup / order_lookup / ticket_lookup)
+                           │
+                           ▼
+                      validation
+              (did every tool call succeed?)
+                 ┌─────────┴─────────┐
+                 ▼                   ▼
+            all succeeded        any failed
+                 │                   │
+                 ▼                   ▼
+               decide          decision = "fail"
+       (LLM recommends;              │
+        Pydantic-validated;          │
+        repair-retry once if         │
+        invalid; fail-safe if        │
+        still invalid)               │
+                 └─────────┬─────────┘
+                           ▼
+                          END
+            (decision handed back to Workflow
+             Service — AI never executes anything)
 ```
 
-## 🔎 Agentic RAG Search (Corrective RAG)
+> `LangGraph` is scoped to *only* this reasoning sub-flow. The deterministic workflow state machine above is plain Python/SQLAlchemy on purpose — see [Design Decisions](#-design-decisions-worth-knowing-for-an-interview).
+
+---
+
+## ♻️ RabbitMQ Retry & Dead-Letter Design
+
+Two different retry mechanisms, used deliberately in different places:
 
 ```
-Recruiter Query
-      │
-      ▼
-  retrieve ──────────────────────────┐
-      │                              │
-      ▼                              │
-    grade (LLM judges relevance)     │
-      │                              │
-   ┌──┴───────────────┐              │
-   │ relevant enough  │  not relevant, retries remain
-   │ OR out of tries  │              │
-   ▼                  ▼              │
-  END            rewrite_query ──────┘
-                 (LLM reformulates, loops back to retrieve)
-                       │
-                       ▼
-              generate (streamed via SSE, grounded + cited)
+Celery-backed queues (ai / integration / notification processing)
+──────────────────────────────────────────────────────────────────
+  task fails → retryable? ──NO──► report failure, fail immediately
+       │ YES
+       ▼
+  self.retry(countdown = 5s → 15s → 30s)
+       │
+       ▼ (retries exhausted)
+  report failure to Workflow Service
+       +
+  re-raise  ──►  task_acks_on_failure_or_timeout=False
+                          │
+                          ▼
+              RabbitMQ dead-letters the message
+                          │
+                          ▼
+                   <queue>.dlq  (inspectable in
+                   the RabbitMQ management UI)
+
+
+Audit Service's raw-AMQP consumer (no task framework underneath it)
+──────────────────────────────────────────────────────────────────
+  audit.queue → processing fails
+       │
+       ▼
+  audit.retry.queue  (per-message TTL: 5s / 15s / 30s,
+                       chosen from a retry-count header)
+       │  TTL expires
+       ▼
+  dead-lettered back into events.exchange
+       │
+       ▼
+  re-delivered to audit.queue  (retry again, up to 3 attempts)
+       │  attempts exhausted
+       ▼
+  audit.queue.dlq  (terminal)
 ```
 
-> Bounded by `MAX_AGENT_ITERATIONS` + `AGENT_TIMEOUT`. Toggle off with `USE_AGENT_MODE=false` for a cheaper single-shot fallback.
+A 4xx response (e.g. an order that doesn't exist) is **never retried** — only network failures and 5xx responses are, since retrying a request that was rejected outright burns time for zero chance of success and, for a side-effecting call like a refund, adds pure risk.
 
 ---
 
@@ -425,17 +314,16 @@ Recruiter Query
 
 <table>
 <tr><td><b>Framework</b></td><td>FastAPI 0.115 · Uvicorn · Pydantic v2</td></tr>
-<tr><td><b>Database</b></td><td>PostgreSQL 16 · pgvector · SQLAlchemy 2.0 async</td></tr>
-<tr><td><b>Migrations</b></td><td>Alembic — async-aware, auto-creates the <code>vector</code> extension</td></tr>
-<tr><td><b>LLM</b></td><td>Groq (<code>llama-3.3-70b-versatile</code>), swappable via <code>LLM_PROVIDER</code></td></tr>
-<tr><td><b>AI Orchestration</b></td><td>LangChain 0.3 (structured output via tool-calling) + LangGraph 0.2 (2 compiled state machines)</td></tr>
-<tr><td><b>Observability</b></td><td>LangSmith tracing (optional, <code>LANGCHAIN_API_KEY</code>)</td></tr>
-<tr><td><b>Embeddings</b></td><td>sentence-transformers/all-MiniLM-L6-v2 (local, no API cost)</td></tr>
-<tr><td><b>Document Processing</b></td><td>PyMuPDF (fitz) + python-docx</td></tr>
-<tr><td><b>OCR</b></td><td>Tesseract + pytesseract, swappable via <code>OCR_PROVIDER</code></td></tr>
-<tr><td><b>Background Jobs</b></td><td>Celery + Redis</td></tr>
-<tr><td><b>Auth</b></td><td>JWT (python-jose) + bcrypt (passlib)</td></tr>
-<tr><td><b>Testing</b></td><td>pytest + pytest-asyncio, mocked at the LangChain boundary</td></tr>
+<tr><td><b>Database</b></td><td>PostgreSQL 16, schema-per-service · SQLAlchemy 2.0 async · SQLite for no-Docker local dev</td></tr>
+<tr><td><b>Migrations</b></td><td>Alembic — async-aware, implemented on workflow-service as the reference pattern</td></tr>
+<tr><td><b>Message Broker</b></td><td>RabbitMQ 3.13 — topic exchange, routing keys, DLX/DLQ, management UI</td></tr>
+<tr><td><b>Background Jobs</b></td><td>Celery 5.4 — broker=RabbitMQ, backend=Redis, fixed retry schedule</td></tr>
+<tr><td><b>Caching / Rate Limiting</b></td><td>Redis 7 — fixed-window counters at the Gateway</td></tr>
+<tr><td><b>AI Orchestration</b></td><td>LangGraph 0.2 — scoped to the AI reasoning sub-flow only</td></tr>
+<tr><td><b>LLM Provider</b></td><td>Pluggable <code>LLMProvider</code> interface — Mock (default, zero-cost) / OpenAI / Groq / Gemini</td></tr>
+<tr><td><b>Auth</b></td><td>JWT (PyJWT) + bcrypt (passlib), refresh-token rotation</td></tr>
+<tr><td><b>Testing</b></td><td>pytest + pytest-asyncio, SQLite-backed per-service suites + a real HTTP E2E suite</td></tr>
+<tr><td><b>Containerization</b></td><td>Docker + Docker Compose (14 services, healthchecks, restart policies)</td></tr>
 </table>
 
 ---
@@ -446,33 +334,40 @@ Recruiter Query
 <summary><b>Click to expand full directory tree</b></summary>
 
 ```
-hiremind-ai-backend/
-├── app/
-│   ├── main.py
-│   ├── core/                     # config.py, security.py, exceptions.py
-│   ├── db/database.py
-│   ├── models/                   # user, job, candidate, resume, embedding, application, interview
-│   ├── schemas/                  # auth, user, job, candidate, interview, workflow
-│   ├── repositories/user_repository.py
-│   ├── dependencies/auth.py       # get_current_user, require_superuser, require_permission
-│   ├── llm/langchain_client.py    # ChatGroq + structured output + LangSmith wiring
-│   ├── document_processing/       # extractor.py (PyMuPDF+OCR), ocr.py (swappable)
-│   ├── embeddings/service.py      # Sentence-Transformers → pgvector
-│   ├── agents/                    # job_analysis, resume_parser, interview, interview_evaluation
-│   ├── workflows/                 # graph.py (recruitment), rag_chat_graph.py (agentic RAG)
-│   ├── tasks/                     # celery_app.py, resume_tasks.py
-│   ├── evaluation/                # schemas.py, metrics.py (precision/recall/F1)
-│   ├── services/                  # job, resume, matching_engine, matching, evidence, search, rag_chat, interview
-│   ├── api/v1/                    # auth, users, health, jobs, candidates, search, processing, interviews
-│   └── utils/response.py
-├── scripts/
-│   ├── add_permissions.py         # seeds 23 permissions
-│   ├── populate.py                # seeds 3 roles + 3 test users
-│   └── run_evaluation.py          # scores agents against evaluation/datasets/
-├── evaluation/datasets/           # synthetic resumes + jobs
-├── alembic/                       # async migrations, auto-creates pgvector extension
-├── tests/                         # 19 tests — health, matching engine, evaluation, RAG chat, agentic RAG
-├── requirements.txt / Dockerfile / docker-compose.yml / .env.example
+enterprise-ai-platform/
+├── services/
+│   ├── api-gateway/            app/{main,auth,rate_limit,core/config}.py
+│   ├── auth-service/           app/{main,models,schemas,security,db,core/config}.py
+│   ├── workflow-service/       app/{main,models,schemas,orchestrator,events,tasks_client,db}.py
+│   │                           alembic/ (real migrations — reference pattern)
+│   ├── ai-service/             app/{main,models,schemas,langgraph_flow,tools,db}.py
+│   │                           app/providers/{base,factory,mock,openai,groq,gemini}_provider.py
+│   ├── integration-service/    app/{main,mock_data,schemas}.py
+│   ├── notification-service/   app/main.py
+│   └── audit-service/          app/{main,consumer,models,db}.py
+├── workers/
+│   ├── ai-worker/tasks.py
+│   ├── integration-worker/tasks.py
+│   └── notification-worker/tasks.py
+├── shared/                     # imported by every service — kept deliberately thin
+│   ├── event_contracts/        EventEnvelope + per-event Pydantic payloads
+│   ├── exceptions/             one error envelope every service returns
+│   ├── logging/                structured JSON logger + correlation-ID middleware
+│   ├── messaging/               celery_app factory, retry_policy, audit publisher
+│   ├── health/                 /ready dependency-check helpers
+│   ├── security/                JWT encode/decode, role → permission map
+│   └── db_utils/                Postgres/SQLite compatibility layer
+├── frontend/                    static dashboard (full Next.js app is on the roadmap)
+├── infrastructure/postgres/     schema init SQL
+├── docs/
+│   ├── architecture/            design docs + the full audit-findings report
+│   └── decisions/                ADR-001 .. ADR-012
+├── eval/                         synthetic dataset + AI evaluation harness
+├── tests/e2e/                   real-stack, self-skipping end-to-end tests
+├── postman/                     importable collection + environment
+├── docker-compose.yml
+├── start.py                     run everything with no Docker (SQLite + venv)
+├── requirements-local.txt
 └── README.md
 ```
 
@@ -483,45 +378,28 @@ hiremind-ai-backend/
 ## 🚀 Quick Start
 
 ### Prerequisites
-- Python 3.12+
-- PostgreSQL 16 with pgvector extension
-- Redis (or Memurai on Windows)
-- Groq API key — free at [console.groq.com](https://console.groq.com/keys)
-- LangSmith API key — optional, free at [smith.langchain.com](https://smith.langchain.com)
+- Docker + Docker Compose **or** Python 3.12+ with RabbitMQ and Redis installed locally
+- No LLM API key required — `LLM_PROVIDER=mock` is the default and runs the full reasoning flow deterministically
 
-### 🐳 With Docker
+### 🐳 With Docker (recommended — matches the real architecture exactly)
 
 ```bash
-cp .env.example .env    # set JWT_SECRET_KEY and GROQ_API_KEY
-docker compose up --build
-
-docker compose exec backend alembic revision --autogenerate -m "init schema"
-docker compose exec backend alembic upgrade head
-docker compose exec backend python -m scripts.add_permissions
-docker compose exec backend python -m scripts.populate
+cp .env.example .env
+make up                       # docker compose up --build -d
+make logs                     # tail every service's logs
 ```
+
+Migrations for workflow-service run automatically as part of its container startup. Open `http://localhost:3000` for the dashboard, or `http://localhost:15672` for the RabbitMQ management UI (guest/guest).
 
 ### 💻 Without Docker
 
 ```bash
-python -m venv venv
-venv\Scripts\activate        # Windows
-source venv/bin/activate     # Mac/Linux
-
-pip install -r requirements.txt
-cp .env.example .env         # point DATABASE_URL/REDIS_URL at localhost, add GROQ_API_KEY
-
-alembic revision --autogenerate -m "init schema"
-alembic upgrade head
-python -m scripts.add_permissions
-python -m scripts.populate
-
-uvicorn app.main:app --reload --port 8000
-# in a second terminal:
-celery -A app.tasks.celery_app worker --loglevel=info   # add --pool=solo on Windows
+python start.py               # installs a single local venv, launches all 10 processes
 ```
 
-📍 API Docs at `http://localhost:8000/docs` · Health check at `http://localhost:8000/api/v1/health`
+Requires RabbitMQ and Redis running locally (the script checks and prints install instructions if they're not reachable). Uses SQLite instead of Postgres — see [Design Decisions](#-design-decisions-worth-knowing-for-an-interview) for how the same application code supports both without an if/else per service.
+
+📍 Gateway at `http://localhost:8000` · Per-service interactive docs at `http://localhost:800{1-6}/docs`
 
 ---
 
@@ -531,53 +409,47 @@ celery -A app.tasks.celery_app worker --loglevel=info   # add --pool=solo on Win
 <summary><b>Click to expand full <code>.env</code> reference</b></summary>
 
 ```env
-# App
-APP_NAME=HireMind AI
-DEBUG=true
-API_V1_PREFIX=/api/v1
+# Database (Docker/Postgres mode)
+POSTGRES_USER=platform
+POSTGRES_PASSWORD=platform
+POSTGRES_DB=platform
+AUTH_DATABASE_URL=postgresql+asyncpg://platform:platform@postgres:5432/platform?options=-csearch_path%3Dauth
+WORKFLOW_DATABASE_URL=postgresql+asyncpg://platform:platform@postgres:5432/platform?options=-csearch_path%3Dworkflow
+AI_DATABASE_URL=postgresql+asyncpg://platform:platform@postgres:5432/platform?options=-csearch_path%3Dai
+AUDIT_DATABASE_URL=postgresql+asyncpg://platform:platform@postgres:5432/platform?options=-csearch_path%3Daudit
 
-# Database
-DATABASE_URL=postgresql+asyncpg://postgres:password@localhost:5432/hiremind_db
+# Redis / RabbitMQ
+REDIS_URL=redis://redis:6379/0
+RABBITMQ_URL=amqp://guest:guest@rabbitmq:5672//
 
-# Redis / Celery
-REDIS_URL=redis://localhost:6379/0
+# Auth
+JWT_SECRET=change-me-to-a-long-random-string
+ACCESS_TOKEN_TTL_SECONDS=900
+REFRESH_TOKEN_TTL_SECONDS=1209600
 
-# JWT
-JWT_SECRET_KEY=change-this-to-a-random-secret
-JWT_ALGORITHM=HS256
-ACCESS_TOKEN_EXPIRE_MINUTES=30
-REFRESH_TOKEN_EXPIRE_DAYS=7
+# LLM provider abstraction — mock needs no key, whole platform runs end to end
+LLM_PROVIDER=mock
+LLM_MODEL=mock-decision-v1
+OPENAI_API_KEY=
+GROQ_API_KEY=
+GEMINI_API_KEY=
 
-# LLM Provider
-LLM_PROVIDER=GROQ
-GROQ_API_KEY=your_groq_api_key
-GROQ_MODEL=llama-3.3-70b-versatile
+# Retry schedule (seconds), used by every Celery worker + the audit consumer
+RETRY_DELAYS_SECONDS=5,15,30
 
-# LangSmith Tracing (optional)
-LANGCHAIN_API_KEY=
-LANGCHAIN_TRACING_V2=false
-LANGCHAIN_PROJECT=hiremind-ai
+# Gateway
+GATEWAY_CORS_ORIGINS=*
 
-# Agentic RAG
-USE_AGENT_MODE=true
-MAX_AGENT_ITERATIONS=3
-AGENT_TIMEOUT=120
-GRADING_THRESHOLD=0.6
-ENABLE_QUERY_REWRITE=true
+# Service discovery (docker-compose network)
+AUTH_SERVICE_URL=http://auth-service:8001
+WORKFLOW_SERVICE_URL=http://workflow-service:8002
+AI_SERVICE_URL=http://ai-service:8003
+INTEGRATION_SERVICE_URL=http://integration-service:8004
+NOTIFICATION_SERVICE_URL=http://notification-service:8005
+AUDIT_SERVICE_URL=http://audit-service:8006
 
-# Embeddings (local — no API key needed)
-EMBEDDING_MODEL=sentence-transformers/all-MiniLM-L6-v2
-EMBEDDING_DIM=384
-
-# OCR
-OCR_PROVIDER=TESSERACT
-
-# Scoring Weights (must sum to 1.0)
-SCORE_WEIGHT_REQUIRED_SKILLS=0.35
-SCORE_WEIGHT_EXPERIENCE=0.20
-SCORE_WEIGHT_SEMANTIC=0.20
-SCORE_WEIGHT_PROJECTS=0.15
-SCORE_WEIGHT_PREFERRED_SKILLS=0.10
+ENVIRONMENT=development
+LOG_LEVEL=INFO
 ```
 
 </details>
@@ -590,111 +462,69 @@ SCORE_WEIGHT_PREFERRED_SKILLS=0.10
 <summary><b>🔑 Authentication</b></summary>
 <br/>
 
-| Method | Endpoint | Description |
-|---|---|---|
-| `POST` | `/api/v1/auth/register` | Create account |
-| `POST` | `/api/v1/auth/login` | Login → JWT tokens + role + permissions |
-| `POST` | `/api/v1/auth/refresh` | Refresh access token |
-| `POST` | `/api/v1/auth/logout` | Revoke refresh tokens |
-| `POST` | `/api/v1/auth/forgot-password` | Send 6-digit OTP |
-| `POST` | `/api/v1/auth/verify-otp` | Verify OTP → reset token |
-| `POST` | `/api/v1/auth/reset-password` | Reset password |
-| `POST` | `/api/v1/auth/change-password` | Change password (logged in) |
+| Method | Endpoint | Auth | Description |
+|---|---|---|---|
+| `POST` | `/api/v1/auth/register` | none | body: `email`, `password`, `role` |
+| `POST` | `/api/v1/auth/login` | none | returns `access_token`, `refresh_token` |
+| `POST` | `/api/v1/auth/refresh` | none | rotates + revokes the old refresh token |
+| `POST` | `/api/v1/auth/logout` | none | revokes the refresh token |
 
 </details>
 
 <details open>
-<summary><b>📋 Jobs</b></summary>
+<summary><b>🧠 Workflows</b></summary>
 <br/>
 
 | Method | Endpoint | Permission | Description |
 |---|---|---|---|
-| `POST` | `/api/v1/jobs/` | `can_create_job` | Create job → runs Job Analysis Agent |
-| `GET` | `/api/v1/jobs/` | `can_view_jobs` | List jobs |
-| `GET` | `/api/v1/jobs/{job_id}` | `can_view_jobs` | Job detail + structured requirements |
-| `POST` | `/api/v1/jobs/{job_id}/resumes` | `can_upload_resume` | Batch resume upload (202, queued) |
-| `POST` | `/api/v1/jobs/{job_id}/screen` | `can_screen_candidates` | Run LangGraph matching workflow |
-| `GET` | `/api/v1/jobs/{job_id}/candidates` | `can_view_candidates` | Ranked, scored candidate list |
+| `POST` | `/api/v1/workflows` | `workflow:create` | body: `name`, `description` |
+| `GET` | `/api/v1/workflows/{workflow_id}` | `workflow:read` | |
+| `POST` | `/api/v1/workflows/{workflow_id}/execute` | `workflow:execute` | body: `input_text`, `customer_id`, `order_id`; optional header `Idempotency-Key` |
+| `GET` | `/api/v1/workflows/executions/{execution_id}/status` | `workflow:read` | full step-by-step timeline |
 
 </details>
 
 <details open>
-<summary><b>👤 Candidates</b></summary>
+<summary><b>🧍 Approvals</b></summary>
 <br/>
 
 | Method | Endpoint | Permission | Description |
 |---|---|---|---|
-| `GET` | `/api/v1/candidates/{id}` | `can_view_candidates` | Full candidate profile |
-| `GET` | `/api/v1/candidates/{id}/score?job_id=` | `can_view_candidate_score` | Explainable score breakdown + evidence |
-| `POST` | `/api/v1/candidates/compare` | `can_compare_candidates` | Side-by-side comparison |
+| `GET` | `/api/v1/approvals` | `workflow:approve` | lists PENDING approvals |
+| `POST` | `/api/v1/approvals/{approval_id}/approve` | `workflow:approve` | body: `decided_by` |
+| `POST` | `/api/v1/approvals/{approval_id}/reject` | `workflow:approve` | |
 
 </details>
 
 <details open>
-<summary><b>🔎 Search & RAG Chat</b></summary>
+<summary><b>📜 Audit</b></summary>
 <br/>
 
 | Method | Endpoint | Permission | Description |
 |---|---|---|---|
-| `POST` | `/api/v1/search/candidates` | `can_search_candidates` | Plain pgvector retrieval |
-| `POST` | `/api/v1/search/chat` | `can_search_candidates` | Agentic RAG — grounded answer + `retrieval_meta` |
-| `POST` | `/api/v1/search/chat/stream` | `can_search_candidates` | Same, streamed via SSE |
-
-</details>
-
-<details open>
-<summary><b>🎤 Interviews</b></summary>
-<br/>
-
-| Method | Endpoint | Permission | Description |
-|---|---|---|---|
-| `POST` | `/api/v1/interviews/` | `can_create_interview` | Create interview → generates questions |
-| `GET` | `/api/v1/interviews/{id}` | — | Interview detail + questions |
-| `POST` | `/api/v1/interviews/{id}/answers` | `can_submit_interview_answers` | Submit candidate answers |
-| `POST` | `/api/v1/interviews/{id}/evaluate` | `can_evaluate_interview` | 5-dimension technical assessment |
+| `GET` | `/api/v1/audit/events` | `audit:read` | query: `workflow_id`, `execution_id`, `event_type`, `page`, `page_size` |
 
 </details>
 
 <details>
-<summary><b>⚙️ Processing & 👥 Admin (click to expand)</b></summary>
+<summary><b>🏥 Health (click to expand — all 7 services)</b></summary>
 <br/>
 
-**Processing**
-
-| Method | Endpoint | Description |
+| Service | Health | Ready |
 |---|---|---|
-| `GET` | `/api/v1/processing/{resume_id}` | Poll async resume pipeline status |
-
-**Users & Admin**
-
-| Method | Endpoint | Permission | Description |
-|---|---|---|---|
-| `GET` | `/api/v1/users/me` | — | My profile + role + permissions |
-| `PATCH` | `/api/v1/users/me` | — | Update profile |
-| `GET` | `/api/v1/users/` | `can_view_users` | List users |
-| `GET` | `/api/v1/users/{id}` | `can_view_users` | User detail |
-| `PATCH` | `/api/v1/users/{id}/block` | `can_block_users` | Block/unblock user |
-| `GET` | `/api/v1/users/roles/` | `can_view_roles` | List roles |
-| `POST` | `/api/v1/users/roles/` | `can_create_role` | Create role |
-| `PATCH` | `/api/v1/users/roles/{id}` | `can_update_role` | Update role |
-| `DELETE` | `/api/v1/users/roles/{id}` | `can_delete_role` | Delete role |
-| `GET` | `/api/v1/users/permissions/` | — | List all permissions |
-| `GET` | `/api/v1/users/companies/` | `can_view_companies` | List companies |
-| `POST` | `/api/v1/users/companies/` | `can_manage_companies` | Create company |
-| `PATCH` | `/api/v1/users/companies/{id}` | `can_manage_companies` | Update company |
-| `DELETE` | `/api/v1/users/companies/{id}` | `can_manage_companies` | Delete company |
-
-**Health**
-
-| Method | Endpoint | Description |
-|---|---|---|
-| `GET` | `/api/v1/health` | App + DB connectivity check |
+| api-gateway | `GET :8000/health` | — |
+| auth-service | `GET :8001/health` | `GET :8001/ready` |
+| workflow-service | `GET :8002/health` | `GET :8002/ready` |
+| ai-service | `GET :8003/health` | `GET :8003/ready` |
+| integration-service | `GET :8004/health` | — (no external dependencies to check) |
+| notification-service | `GET :8005/health` | — (no external dependencies to check) |
+| audit-service | `GET :8006/health` | `GET :8006/ready` |
 
 </details>
 
 <div align="center">
 
-**34 endpoints total** · Superusers bypass every permission check automatically
+**13 public Gateway endpoints** · a **Postman collection** with auto-token-capture is included in `postman/`
 
 </div>
 
@@ -703,67 +533,50 @@ SCORE_WEIGHT_PREFERRED_SKILLS=0.10
 ## 💡 API Examples
 
 <details>
-<summary><b>Create a Job</b> (runs the Job Analysis Agent)</summary>
+<summary><b>Login</b></summary>
 
 ```bash
-curl -X POST http://localhost:8000/api/v1/jobs/ \
-  -H "Authorization: Bearer YOUR_TOKEN" \
+curl -X POST http://localhost:8000/api/v1/auth/login \
   -H "Content-Type: application/json" \
-  -d '{"title": "Senior Python AI Engineer", "description": "2+ years Python, FastAPI, PostgreSQL, LLM/RAG required. LangChain, AWS preferred."}'
+  -d '{"email": "admin@example.com", "password": "password123"}'
 ```
 </details>
 
 <details>
-<summary><b>Agentic RAG Search</b></summary>
+<summary><b>Execute a high-value refund (triggers the approval gate)</b></summary>
 
 ```bash
-curl -X POST http://localhost:8000/api/v1/search/chat \
+curl -X POST http://localhost:8000/api/v1/workflows/{workflow_id}/execute \
   -H "Authorization: Bearer YOUR_TOKEN" \
   -H "Content-Type: application/json" \
-  -d '{"query": "who has FastAPI and RAG experience?"}'
+  -H "Idempotency-Key: unique-key-123" \
+  -d '{
+        "input_text": "I received the wrong product and want a refund of $250.",
+        "customer_id": "cust_1001",
+        "order_id": "ord_5001"
+      }'
 ```
 
 Response:
 ```json
 {
-  "success": true,
-  "data": {
-    "answer": "Jane Doe has direct experience...",
-    "sources": [{"name": "Jane Doe", "similarity": 0.87, "matched_evidence": "..."}],
-    "retrieval_meta": {"final_query": "...", "iterations_used": 1, "low_confidence": false, "grade_score": 0.85}
-  }
+  "execution_id": "a1b2c3d4-...",
+  "correlation_id": "e5f6g7h8-...",
+  "status": "QUEUED",
+  "idempotent_replay": false
 }
 ```
 </details>
 
 <details>
-<summary><b>Explainable Candidate Score</b></summary>
+<summary><b>Trace one execution across every service</b></summary>
 
 ```bash
-curl "http://localhost:8000/api/v1/candidates/{id}/score?job_id={job_id}" \
+curl "http://localhost:8000/api/v1/audit/events?execution_id={execution_id}" \
   -H "Authorization: Bearer YOUR_TOKEN"
 ```
 
-Response:
-```json
-{
-  "final_score": 87.3,
-  "recommendation": "SHORTLIST",
-  "confidence": 0.91,
-  "breakdown": {
-    "required_skills_score": 100.0,
-    "experience_score": 100.0,
-    "semantic_score": 82.0,
-    "projects_score": 66.7,
-    "preferred_skills_score": 50.0
-  },
-  "matched_required_skills": ["Python", "FastAPI", "PostgreSQL"],
-  "missing_required_skills": [],
-  "evidence": [
-    {"requirement": "FastAPI", "evidence": "Built a FastAPI-based RAG system.", "resume_page": 2}
-  ]
-}
-```
+Returns every event — `workflow.started`, `ai.completed`, `approval.requested`, `approval.completed`, `integration.completed`, `workflow.completed` — all stamped with the same `correlation_id`.
 </details>
 
 ---
@@ -771,39 +584,28 @@ Response:
 ## 🗄️ Database Schema
 
 <details>
-<summary><b>Click to expand schema diagram</b></summary>
+<summary><b>Click to expand schema diagram (5 Postgres schemas, zero cross-schema access)</b></summary>
 
 ```
-companies          users               roles              permissions
-──────────         ──────────          ──────────         ──────────
-id (UUID) ◄────┐   id (UUID)           id (UUID)          id (UUID)
-name           │   email               name               code_name
-slug           └── company_id ──►      code_name ◄─────── module_name
-subscription_plan  role_id ──────►     description         (23 seeded)
-                   is_superuser        permissions[] ──────────┘
+auth                          workflow
+──────────                    ──────────────────────
+users                         workflows
+refresh_tokens                workflow_executions  (idempotency_key, unique per workflow)
+                               step_executions
+                               approvals
+                               execution_events
 
-jobs                job_requirements        candidates
-──────────          ──────────────────      ──────────────────
-id (UUID)           job_id (FK, unique)     id (UUID)
-company_id           required_skills[]       skills[]
-title                preferred_skills[]      experience_years
-description          skill_weights (JSON)    education/work_experience/
-status                                        projects (JSONB)
+ai                             audit
+──────────                     ──────────────────
+ai_requests                    audit_events  (event_id unique — idempotent on redelivery)
+ai_responses
+model_configurations
+token_usage
 
-resumes              candidate_embeddings     applications        candidate_scores
-──────────           ──────────────────       ──────────────      ──────────────────
-id (UUID)            candidate_id (FK)         job_id (FK)         application_id (unique)
-candidate_id (FK)    embedding VECTOR(384) ◄── pgvector             final_score
-status (queued/      source_text               candidate_id (FK)   recommendation
- processing/                                                        evidence (JSON)
- completed/failed)                                                  weights_used (JSON)
-
-interviews           interview_questions       interview_answers    evaluation_results
-──────────           ──────────────────        ──────────────────   ──────────────────
-job_id (FK)          interview_id (FK)          question_id (FK,     interview_id (FK, unique)
-candidate_id (FK)    question_text              unique)              technical_knowledge
-status                                           answer_text          problem_solving/
-                                                                       communication/role_fit/overall
+integration
+──────────────────
+idempotency_keys   (payment idempotency store)
+mock_customers / mock_orders / mock_tickets / mock_payments
 ```
 
 </details>
@@ -812,77 +614,81 @@ status                                           answer_text          problem_so
 
 ## 🔐 Security Features
 
-- 🔑 JWT access tokens (30min) + refresh tokens (7 days), refresh tokens stored hashed
+- 🔑 JWT access (15min) + refresh (14 days) tokens, refresh tokens rotated and revoked-on-reuse
 - 🔒 bcrypt password hashing (passlib)
-- 🛡️ 23-permission RBAC across 3 roles — superusers bypass all checks automatically
-- 🚫 Login lockout after 5 failed attempts
-- 🕵️ Forgot-password flow never reveals whether an email exists
-- 📄 Resume content treated as untrusted input: extension/size validated, LLM prompts are extraction-only, structured output Pydantic-validated before touching Postgres
-- ⚖️ Scoring never uses protected characteristics — the matching engine only ever sees `skills`, `experience_years`, `projects`, and text embeddings
+- 🛡️ RBAC — 4 roles (`ADMIN`, `OPERATOR`, `APPROVER`, `USER`) × 7 explicit permissions, enforced at the Gateway *and* re-checked per service
+- 🌐 CORS configured at the Gateway, origin allowlist via `GATEWAY_CORS_ORIGINS`
+- 🚦 Redis-backed rate limiting on auth, workflow-create, and workflow-execute endpoints
+- 🔁 Idempotency on every side-effecting operation — workflow execution and the refund call
+- 🧍 Human approval required before any high-risk side-effecting action; enforced structurally, not by convention
+- 🚫 The LLM never gets direct database or arbitrary HTTP access — only explicitly registered, Pydantic-validated tools
+- 📝 Structured logs never contain passwords, JWTs, or API keys — by discipline in every log call site
 
 ---
 
-## 🧪 Test Credentials
-
-After running `python -m scripts.add_permissions` and `python -m scripts.populate`:
-
-| Email | Password | Role |
-|---|---|---|
-| `admin@hiremind-demo.io` | `Admin@1234` | Superuser — all 23 permissions |
-| `recruiter@hiremind-demo.io` | `Admin@1234` | Recruiter |
-| `hiringmanager@hiremind-demo.io` | `Admin@1234` | Hiring Manager |
-
-> ⚠️ **Local development only** — change or delete these before any real deployment.
-
-📍 API Docs: `http://localhost:8000/docs`
-
----
-
-## 📊 Alembic Commands
+## 🧪 Testing
 
 ```bash
-alembic revision --autogenerate -m "description"  # new migration
-alembic upgrade head                               # apply migrations
-alembic downgrade -1                               # rollback one
-alembic history                                    # view history
-alembic current                                    # current version
+# Per-service suites (isolated PYTHONPATH — avoids same-named `app` package collisions)
+cd services/auth-service && PYTHONPATH=.:../.. pytest tests/ -v
+cd services/api-gateway && PYTHONPATH=.:../.. pytest tests/ -v
+cd services/ai-service && PYTHONPATH=.:../.. pytest tests/ -v
+cd services/integration-service && PYTHONPATH=.:../.. pytest tests/ -v
+cd services/notification-service && PYTHONPATH=.:../.. pytest tests/ -v
+cd services/workflow-service && PYTHONPATH=.:../.. pytest tests/ -v
+cd services/audit-service && PYTHONPATH=.:../.. pytest tests/ -v
+PYTHONPATH=. pytest shared/tests/ -v
+
+# End-to-end, against the real running stack (self-skips if it isn't up)
+docker compose up -d
+pytest tests/e2e -v -m e2e
+
+# AI evaluation harness
+cd eval && python generate_dataset.py
+cd ../services/ai-service && PYTHONPATH=.:../.. python ../../eval/run_eval.py
 ```
+
+**46 passing automated tests** across 7 services + shared logic, plus 2 end-to-end tests that exercise the real stack over HTTP with nothing mocked.
 
 ---
 
 ## 🧠 Design Decisions Worth Knowing for an Interview
 
-> 💡 **Scoring is deterministic, not LLM-guessed.** `matching_engine.py` has zero LLM calls. Same inputs always produce the same score (unit tested).
+> 💡 **LangGraph is scoped to the AI reasoning sub-flow only.** The workflow state machine (`CREATED → RUNNING → WAITING_FOR_APPROVAL → COMPLETED/FAILED`) is plain Python/SQLAlchemy on purpose — it's deterministic orchestration, not AI reasoning, and doesn't need an AI framework underneath it.
 
-> 💡 **The LangGraph evaluation node is qualitative-only by construction.** It narrates matched/missing skills and is explicitly prompted never to output a numeric score, so it can't override the deterministic matcher.
+> 💡 **Two retry mechanisms exist, deliberately, not by accident.** Celery already *is* a retry mechanism, so the three worker queues use its native `self.retry()`. Audit Service's consumer has no task framework underneath it, so it implements the classic RabbitMQ TTL-cascade pattern by hand. Using the same mechanism everywhere "for consistency" would mean picking the worse-fitting tool in one of the two places.
 
-> 💡 **Evidence is retrieved, never generated.** Keyword search over page-attributed resume text; explicitly returns *"Evidence not found in resume."* rather than fabricating a plausible sentence.
+> 💡 **A 4xx is never retried.** Only network failures and 5xx responses are — retrying a request that was rejected outright wastes the full backoff schedule for zero chance of success, and for a side-effecting call like a refund, unnecessary retries are pure added risk.
 
-> 💡 **Agentic RAG is bounded, not infinite.** `MAX_AGENT_ITERATIONS` + `AGENT_TIMEOUT` guarantee the grade→rewrite→retry loop terminates and flags `low_confidence` rather than looping forever on an unanswerable query.
+> 💡 **The LLM never executes a side effect — structurally, not by convention.** Integration Service's refund endpoint is only ever called by a worker acting on Workflow Service's explicit dispatch after approval. There is no code path from AI Service to a side-effecting action, so a prompt-injected or hallucinating model has nothing to exploit.
 
-> 💡 **Celery tasks own their own event loop.** `resume_tasks.py` calls `asyncio.run()` inside a sync Celery task — the correct pattern for mixing Celery (sync, process-based) with an async SQLAlchemy/LangChain stack.
+> 💡 **A failed data lookup fails the step — it does not ask a human to approve a guess.** Early versions of this project routed tool-lookup failures to the human-approval queue; that's the wrong default; it now fails the workflow cleanly instead, caught and fixed during an explicit audit pass (see `docs/architecture/audit-findings.md`).
 
-> 💡 **OCR and LLM provider are both swappable via one env var** behind abstract interfaces — no call site elsewhere in the app knows which concrete provider is active.
+> 💡 **The same application code runs against Postgres or SQLite, with zero per-service if/else.** A shared `shared/db_utils` helper strips schema qualifiers only when the dialect is SQLite, which is what lets `python start.py` skip Postgres entirely for local dev while Docker/production mode stays byte-for-byte unchanged.
+
+> 💡 **`shared/` holds infrastructure plumbing only, never business logic.** If workflow decisions lived there, every service would be silently coupled to them — the one rule that keeps 7 services from quietly becoming a distributed monolith.
 
 ---
 
 ## 🗺️ Roadmap
 
-- [x] FastAPI + PostgreSQL + pgvector, async throughout
-- [x] Job Analysis Agent + Resume Parser Agent (LangChain structured output)
-- [x] PyMuPDF extraction + Tesseract OCR fallback
-- [x] Sentence-Transformers embeddings + pgvector storage
-- [x] Deterministic weighted matching engine + grounded evidence retrieval
-- [x] LangGraph recruitment workflow
-- [x] Agentic RAG search (CRAG)
-- [x] SSE streaming chat
-- [x] AI interview system
-- [x] Celery + Redis background processing
+- [x] 7 FastAPI microservices, schema-per-service PostgreSQL
+- [x] RabbitMQ event-driven architecture with real retry/DLQ cascades
+- [x] Celery background workers with a fixed, retryable-error-aware retry schedule
+- [x] LangGraph AI reasoning flow + pluggable LLM provider abstraction
+- [x] Human-in-the-loop approval gate, enforced structurally
+- [x] Idempotency on every side-effecting operation
+- [x] Correlation-ID tracing across all 7 services, both directions
 - [x] JWT auth + granular RBAC
-- [x] LangSmith tracing
-- [x] Evaluation framework
-- [ ] Rate limiting + structured observability middleware
-- [ ] Next.js frontend
+- [x] Alembic migrations (workflow-service, reference pattern)
+- [x] 46 automated tests + a self-skipping E2E suite
+- [x] AI evaluation harness
+- [x] No-Docker local run (`start.py`, SQLite + single venv)
+- [x] Postman collection with auto-token-capture
+- [ ] Alembic for auth/ai/audit services (workflow-service is the reference to extend)
+- [ ] OpenTelemetry distributed tracing
+- [ ] True database-per-service (separate Postgres instances)
+- [ ] Full Next.js dashboard
 
 ---
 
@@ -890,12 +696,12 @@ alembic current                                    # current version
 
 ### 📄 License
 
-MIT License — free to use, modify, and distribute.
+No formal license file is included yet — treat this as a portfolio/educational project unless a `LICENSE` is added.
 
 <br/>
 
-**Built with FastAPI · LangChain · LangGraph · Groq · pgvector · Celery**
+**Built with FastAPI · RabbitMQ · Celery · Redis · PostgreSQL · LangGraph · Docker**
 
-⭐ *If this project helped you understand production AI system design, consider giving it a star.*
+⭐ *If this project helped you understand distributed AI-system design, consider giving it a star.*
 
 </div>
