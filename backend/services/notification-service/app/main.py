@@ -5,6 +5,10 @@ appended to an in-memory feed) so the platform never needs a paid email
 provider -- the point being demonstrated is the abstraction and the
 decoupling from Workflow Service, not real deliverability.
 """
+import sys
+import os
+sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..', '..', '..')))
+
 from datetime import datetime, timezone
 
 from fastapi import FastAPI
