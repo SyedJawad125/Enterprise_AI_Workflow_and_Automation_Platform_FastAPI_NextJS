@@ -135,7 +135,7 @@ async def add_permissions():
     from app.models import Permission
     from sqlalchemy import select
 
-    print('🔑 Adding permissions...\n')
+    print('Adding permissions...\n')
     async with SessionLocal() as db:
         added = 0
         for perm_data in PERMISSIONS:
@@ -143,13 +143,13 @@ async def add_permissions():
                 select(Permission).where(Permission.code_name == perm_data['code_name'])
             )
             if existing.scalar_one_or_none():
-                print(f'  ⏭  Exists: {perm_data["code_name"]}')
+                print(f'  Exists: {perm_data["code_name"]}')
                 continue
             db.add(Permission(**perm_data))
             added += 1
-            print(f'  ✅ Added: {perm_data["code_name"]}')
+            print(f'  Added: {perm_data["code_name"]}')
         await db.commit()
-    print(f'\n✅ Done — {added} permissions added.')
+    print(f'\nDone — {added} permissions added.')
 
 
 if __name__ == '__main__':
