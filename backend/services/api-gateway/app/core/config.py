@@ -1,9 +1,9 @@
 import os
 
-AUTH_SERVICE_URL = os.environ.get("AUTH_SERVICE_URL", "http://auth-service:8001")
-WORKFLOW_SERVICE_URL = os.environ.get("WORKFLOW_SERVICE_URL", "http://workflow-service:8002")
-AUDIT_SERVICE_URL = os.environ.get("AUDIT_SERVICE_URL", "http://audit-service:8006")
-REDIS_URL = os.environ.get("REDIS_URL", "redis://redis:6379/0")
+AUTH_SERVICE_URL = os.environ.get("AUTH_SERVICE_URL", "http://127.0.0.1:8001")
+WORKFLOW_SERVICE_URL = os.environ.get("WORKFLOW_SERVICE_URL", "http://127.0.0.1:8002")
+AUDIT_SERVICE_URL = os.environ.get("AUDIT_SERVICE_URL", "http://127.0.0.1:8006")
+REDIS_URL = os.environ.get("REDIS_URL", "redis://127.0.0.1:6379/0")
 
 RATE_LIMITS = {
     # (requests, window_seconds)
