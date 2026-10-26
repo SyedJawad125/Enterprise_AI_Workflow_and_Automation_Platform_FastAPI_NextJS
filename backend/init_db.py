@@ -31,52 +31,76 @@ sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
 async def init_auth_db():
     """Initialize auth-service database tables"""
-    print('🔧 Initializing auth-service database...')
-    from services.auth_service.app.db import engine, Base
-    from services.auth_service.app import models  # Import all models
+    print('Initializing auth-service database...')
+    import sys
+    import os
+    auth_service_path = os.path.join(os.path.dirname(__file__), 'services', 'auth-service')
+    if auth_service_path not in sys.path:
+        sys.path.insert(0, auth_service_path)
+
+    from app.db import engine, Base
+    from app import models  # Import all models
 
     async with engine.begin() as conn:
         await conn.run_sync(Base.metadata.create_all)
-    print('✅ Auth-service tables created!')
+    print('Auth-service tables created!')
 
 
 async def init_workflow_db():
     """Initialize workflow-service database tables"""
-    print('🔧 Initializing workflow-service database...')
-    from services.workflow_service.app.db import engine, Base
-    from services.workflow_service.app import models  # Import all models
+    print('Initializing workflow-service database...')
+    import sys
+    import os
+    workflow_service_path = os.path.join(os.path.dirname(__file__), 'services', 'workflow-service')
+    if workflow_service_path not in sys.path:
+        sys.path.insert(0, workflow_service_path)
+
+    from app.db import engine, Base
+    from app import models  # Import all models
 
     async with engine.begin() as conn:
         await conn.run_sync(Base.metadata.create_all)
-    print('✅ Workflow-service tables created!')
+    print('Workflow-service tables created!')
 
 
 async def init_ai_db():
     """Initialize ai-service database tables"""
-    print('🔧 Initializing ai-service database...')
-    from services.ai_service.app.db import engine, Base
-    from services.ai_service.app import models  # Import all models
+    print('Initializing ai-service database...')
+    import sys
+    import os
+    ai_service_path = os.path.join(os.path.dirname(__file__), 'services', 'ai-service')
+    if ai_service_path not in sys.path:
+        sys.path.insert(0, ai_service_path)
+
+    from app.db import engine, Base
+    from app import models  # Import all models
 
     async with engine.begin() as conn:
         await conn.run_sync(Base.metadata.create_all)
-    print('✅ AI-service tables created!')
+    print('AI-service tables created!')
 
 
 async def init_audit_db():
     """Initialize audit-service database tables"""
-    print('🔧 Initializing audit-service database...')
-    from services.audit_service.app.db import engine, Base
-    from services.audit_service.app import models  # Import all models
+    print('Initializing audit-service database...')
+    import sys
+    import os
+    audit_service_path = os.path.join(os.path.dirname(__file__), 'services', 'audit-service')
+    if audit_service_path not in sys.path:
+        sys.path.insert(0, audit_service_path)
+
+    from app.db import engine, Base
+    from app import models  # Import all models
 
     async with engine.begin() as conn:
         await conn.run_sync(Base.metadata.create_all)
-    print('✅ Audit-service tables created!')
+    print('Audit-service tables created!')
 
 
 async def init_db():
     """Initialize all service databases"""
     print("=" * 60)
-    print("🚀 Initializing Database Tables")
+    print("Initializing Database Tables")
     print("=" * 60)
     print()
 
@@ -87,13 +111,13 @@ async def init_db():
         await init_audit_db()
 
         print("\n" + "=" * 60)
-        print("✅ All database tables created successfully!")
+        print("All database tables created successfully!")
         print("=" * 60)
         print("\nNext steps:")
         print("  1. Run: python add_permissions.py")
         print("  2. Run: python populate.py")
     except Exception as e:
-        print(f"\n❌ Error initializing database: {e}")
+        print(f"\nError initializing database: {e}")
         raise
 
 
