@@ -423,6 +423,10 @@ async def populate():
                 'can_upload_document', 'can_view_documents',
                 'can_delete_document', 'can_search',
                 'can_chat', 'can_summarize', 'can_download_report',
+                'can_view_workflows', 'can_execute_workflow',
+                'can_view_executions', 'can_view_approvals',
+                'can_use_ai', 'can_view_ai_usage',
+                'can_view_integrations',
             ]
             emp_perms = (await db.execute(
                 select(Permission).where(Permission.code_name.in_(emp_codes))
